@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 import 'hardhat/console.sol';
-// import IERC20 from openzeppelin
-import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-
-// test tokken
+import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol';
 
 contract ReceiptFlowContract {
+  using SafeERC20 for IERC20;
+
   /**
    * @notice The receipt struct
    * @param customer The customer address
@@ -52,10 +51,10 @@ contract ReceiptFlowContract {
   mapping(uint => WithdrawRequest) public withdrawRequests;
   mapping(uint => mapping(address => bool)) public withdrawRequestsConfirmation;
   mapping(address => bool) public withdrawAddressChangeApprovals;
-  address newWithdrawAddress;
+  address public newWithdrawAddress;
 
   uint256 withdrawRequestCount = 0;
-  address withdrawAddress;
+  address public withdrawAddress;
   uint256 public requiredOwnersApprovals;
 
   address[] public owners;
@@ -67,10 +66,9 @@ contract ReceiptFlowContract {
     address[] memory _acceptedTokens,
     uint8 _requiredOwnersApprovals
   ) {
-    require(_owners.length > 0, 'Owners must be greater than 0');
-    require(_withdrawAddress != address(0), 'Withdraw address must be set');
-    require(_acceptedTokens.length > 0, 'Accepted tokens must be greater than 0');
-    require(_requiredOwnersApprovals <= _owners.length, 'Required approvals must be less than or equal to owners');
+    require(_owners.length > 0, 'OWNERS_ARE_REQUIRED');
+    require(_withdrawAddress != address(0), 'WITHDRAW_ADDRESS_REQUIRED');
+    require(_requiredOwnersApprovals <= _owners.length, 'INVALID_APPROVALS_NUMBER');
 
     // set required withdraw approvals
     requiredOwnersApprovals = _requiredOwnersApprovals;
@@ -93,6 +91,7 @@ contract ReceiptFlowContract {
     // add accepted tokens to mapping
     uint tokensAcceptedLength = _acceptedTokens.length;
     for (uint i = 0; i < tokensAcceptedLength; i++) {
+      require(isContract(_acceptedTokens[i]), 'INVALID_TOKEN_ADDRESS');
       supportedTokens[_acceptedTokens[i]] = true;
     }
   }
@@ -125,21 +124,21 @@ contract ReceiptFlowContract {
   function handleTransfer(uint _receiptId) public payable {
     Receipt storage receipt = receipts[_receiptId];
 
-    require(receipt.id > 0, 'Receipt does not exist');
-    require(receipt.customer == address(msg.sender), 'Sender address does not match customer address in receipt');
-    require(block.timestamp <= receipt.expiration, 'Receipt has expired');
+    require(receipt.id > 0, 'RECEIPT_NOT_FOUND');
+    require(receipt.customer == address(msg.sender), 'CUSTOMER_ADDRESS_NOT_MATCH');
+    require(block.timestamp <= receipt.expiration, 'RECEIPT_EXPIRED');
 
     // is ERC-20 token
     if (isContract(receipt.token)) {
       IERC20 token = IERC20(receipt.token);
-      require(token.allowance(msg.sender, address(this)) >= receipt.amount, 'Token allowance is not sufficient');
-      require(token.balanceOf(msg.sender) >= receipt.amount, 'Token balance is not sufficient');
-      require(token.transferFrom(msg.sender, address(this), receipt.amount), 'Token transfer failed');
+      require(token.allowance(msg.sender, address(this)) >= receipt.amount, 'ALLOWANCE_NOT_SUFFICIENT');
+      require(token.balanceOf(msg.sender) >= receipt.amount, 'INSUFFICIENT_BALANCE');
+      token.safeTransferFrom(msg.sender, address(this), receipt.amount);
       delete receipts[_receiptId];
       return;
     }
     // is ether
-    require(receipt.amount == msg.value, 'Amount in transfer does not match receipt amount');
+    require(receipt.amount == msg.value, 'SENT_AMOUNT_NOT_MATCH');
     delete receipts[_receiptId];
     return;
   }
@@ -147,29 +146,29 @@ contract ReceiptFlowContract {
   /**
    * @notice Withdraw funds from the smart contract
    */
-  function addWithdrawRequest(uint256 _amount, address _token) internal onlyOwners returns (uint256) {
-    uint256 newId = ++withdrawRequestCount;
-    withdrawRequests[newId] = WithdrawRequest(newId, _amount, _token, false, msg.data);
-    return newId;
+  function registerWithdrawRequest(uint256 _amount, address _token) internal onlyOwners returns (uint256) {
+    require(_amount > 0, 'INVALID_AMOUNT');
+    require(supportedTokens[_token] == true, 'ERC20_TOKEN_NOT_SUPPORTED');
+    if (_token != address(0)) {
+      IERC20 token = IERC20(_token);
+      require(token.balanceOf(address(this)) >= _amount, 'INSUFFICIENT_BALANCE');
+    } else {
+      require(address(this).balance >= _amount, 'INSUFFICIENT_BALANCE');
+    }
+    withdrawRequestCount = withdrawRequestCount + 1;
+    withdrawRequests[withdrawRequestCount] = WithdrawRequest(withdrawRequestCount, _amount, _token, false, msg.data);
+    return withdrawRequestCount;
   }
 
   /**
    * @notice Submit a withdraw request
-   * @param _value The value of the transaction
+   * @param _amount The value of the transaction
    * @param _token The value smart contract address
    */
-  function submitWithdrawRequest(uint _value, address _token) public onlyOwners {
-    require(withdrawAddress != address(0), 'Withdraw address not set');
-    require(_value > 0, 'Value must be greater than 0');
-    require(supportedTokens[_token] == true, 'ERC20_TOKEN_NOT_SUPPORTED');
-    if (_token == address(0)) {
-      IERC20 token = IERC20(_token);
-      require(token.balanceOf(address(this)) >= _value, 'Insufficient funds');
-    } else {
-      require(address(this).balance >= _value, 'Insufficient funds');
-    }
-    uint id = addWithdrawRequest(_value, _token);
+  function submitWithdrawRequest(uint _amount, address _token) public onlyOwners returns (uint256) {
+    uint256 id = registerWithdrawRequest(_amount, _token);
     confirmWithdraw(id);
+    return id;
   }
 
   /**
@@ -177,12 +176,29 @@ contract ReceiptFlowContract {
    * @param _id The transaction id
    */
   function confirmWithdraw(uint256 _id) public onlyOwners {
-    require(withdrawRequests[_id].executed == false, 'Transaction already executed');
-    require(withdrawRequestsConfirmation[_id][msg.sender] == false, 'Already confirmed by owner');
+    require(withdrawRequests[_id].executed == false, 'WITHDRAW_ALREADY_EXECUTED');
+    require(withdrawRequestsConfirmation[_id][msg.sender] == false, 'ALREADY_CONFIRMED');
     withdrawRequestsConfirmation[_id][msg.sender] = true;
-
     if (isWithdrawConfirmed(_id)) {
       executeWithdraw(_id);
+    }
+  }
+
+  /**
+   * @notice execute a withdraw transaction
+   * @param _id The transaction id
+   */
+  function executeWithdraw(uint _id) public payable onlyOwners {
+    require(withdrawRequests[_id].executed == false, 'WITHDRAW_ALREADY_EXECUTED');
+    if (withdrawRequests[_id].token == address(0)) {
+      (bool success, ) = withdrawAddress.call{ value: withdrawRequests[_id].amount }(withdrawRequests[_id].data);
+      require(success);
+      withdrawRequests[_id].executed = true;
+    } else {
+      IERC20 tokenContract = IERC20(withdrawRequests[_id].token);
+      tokenContract.safeApprove(address(this), withdrawRequests[_id].amount);
+      tokenContract.safeTransfer(withdrawAddress, withdrawRequests[_id].amount);
+      withdrawRequests[_id].executed = true;
     }
   }
 
@@ -195,7 +211,7 @@ contract ReceiptFlowContract {
     return getWithdrawConfirmationsCount(_id) >= requiredOwnersApprovals;
   }
 
-  function getWithdrawConfirmationsCount(uint256 _id) internal view returns (uint256) {
+  function getWithdrawConfirmationsCount(uint256 _id) public view returns (uint256) {
     uint256 numConfirmations = 0;
     for (uint i = 0; i < owners.length; i++) {
       if (withdrawRequestsConfirmation[_id][owners[i]] == true) {
@@ -205,7 +221,7 @@ contract ReceiptFlowContract {
     return numConfirmations;
   }
 
-  function getWithdrawAddressChangeConfirmationsCount() internal view returns (uint256) {
+  function withdrawAddressChangeConfirmationsCount() public view returns (uint256) {
     uint256 numConfirmations = 0;
     for (uint i = 0; i < owners.length; i++) {
       if (withdrawAddressChangeApprovals[owners[i]] == true) {
@@ -216,25 +232,13 @@ contract ReceiptFlowContract {
   }
 
   /**
-   * @notice execute a withdraw transaction
-   * @param _id The transaction id
-   */
-  function executeWithdraw(uint _id) public payable onlyOwners {
-    require(withdrawRequests[_id].executed == false, 'Transaction already executed');
-    (bool success, ) = withdrawAddress.call{ value: withdrawRequests[_id].amount }(withdrawRequests[_id].data);
-    require(success);
-    withdrawRequests[_id].executed = true;
-  }
-
-  /**
    * @notice Withdraw funds from the smart contract
    */
-  function changeWithdrawAddress(address _newAddress) public onlyOwners {
-    require(_newAddress != address(0), 'New address must be set');
-    require(withdrawAddress != _newAddress, 'New address must be different than current address');
+  function changeWithdrawAddressRequest(address _newAddress) public onlyOwners {
+    require(_newAddress != address(0), 'INVALID_ADDRESS');
+    require(withdrawAddress != _newAddress, 'NEW_ADDRESS_MUST_BE_SET');
 
     newWithdrawAddress = _newAddress;
-    withdrawAddressChangeApprovals[msg.sender] = true;
     confirmWithdrawAddressChange();
   }
 
@@ -242,10 +246,9 @@ contract ReceiptFlowContract {
    * @notice Confirm a withdraw address change
    */
   function confirmWithdrawAddressChange() public onlyOwners {
-    require(newWithdrawAddress != address(0), 'New address must be set');
-    require(withdrawAddressChangeApprovals[msg.sender] == false, 'Already confirmed by owner');
-    require(withdrawAddress != newWithdrawAddress, 'New address must be different than current address');
-    if (getWithdrawAddressChangeConfirmationsCount() >= requiredOwnersApprovals) {
+    require(withdrawAddressChangeApprovals[msg.sender] == false, 'ALREADY_CONFIRMED');
+    withdrawAddressChangeApprovals[msg.sender] = true;
+    if (withdrawAddressChangeConfirmationsCount() >= requiredOwnersApprovals) {
       withdrawAddress = newWithdrawAddress;
       newWithdrawAddress = address(0);
       for (uint i = 0; i < owners.length; i++) {
@@ -258,7 +261,7 @@ contract ReceiptFlowContract {
    * @notice only a smart contract owner can call this function
    */
   modifier onlyOwners() {
-    require(isOwner(), 'Caller is not in the owners list');
+    require(isOwner(), 'NOT_AUTHORIZED');
     _;
   }
 
