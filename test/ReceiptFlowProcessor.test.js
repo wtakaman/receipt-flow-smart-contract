@@ -455,19 +455,19 @@ describe('ReceiptFlowContract', () => {
       const withdrawAddressBalanceBefore = await contractERC20.balanceOf(withdrawSigner1.address)
       const withdrawAmount = utils.parseEther('1')
       const withdrawRequestId = 1
-      //
+
       // Add the receipt
       await contract
         .connect(ceoSigner)
         .addReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
 
-      //     // pay receipt
+      // pay receipt
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
       await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
-      //
-      //     // submit withdraw request
+
+      // submit withdraw request
       await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
-      //     // request withdraw
+      // request withdraw
       await contract.connect(ctoSigner).confirmWithdraw(withdrawRequestId)
       const withdrawRequest = await contract.connect(ceoSigner).withdrawRequests(withdrawRequestId)
       const withdrawAddressBalanceAfter = await contractERC20.balanceOf(withdrawSigner1.address)
@@ -498,7 +498,7 @@ describe('ReceiptFlowContract', () => {
       // submit withdraw request
       await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
       // the withdraw request is already confirmed on the submitWithdrawRequest
-      /// trying to confirm withdraw request again
+      // trying to confirm withdraw request again
       await expect(contract.connect(ceoSigner).confirmWithdraw(withdrawRequestId)).to.be.revertedWith(
         'ALREADY_CONFIRMED'
       )
@@ -510,19 +510,19 @@ describe('ReceiptFlowContract', () => {
       const withdrawAddressBalanceBefore = await contractERC20.balanceOf(withdrawSigner1.address)
       const withdrawAmount = utils.parseEther('1')
       const withdrawRequestId = 1
-      //
+
       // Add the receipt
       await contract
         .connect(ceoSigner)
         .addReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
 
-      //     // pay receipt
+      // pay receipt
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
       await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
       //
-      //     // submit withdraw request
+      // submit withdraw request
       await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
-      //     // request withdraw
+      // request withdraw
       await contract.connect(ctoSigner).confirmWithdraw(withdrawRequestId)
       const withdrawRequest = await contract.connect(ceoSigner).withdrawRequests(withdrawRequestId)
       const withdrawAddressBalanceAfter = await contractERC20.balanceOf(withdrawSigner1.address)
