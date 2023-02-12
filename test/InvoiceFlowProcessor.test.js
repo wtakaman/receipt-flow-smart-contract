@@ -41,330 +41,330 @@ beforeEach(async () => {
   await contractERC20.deployed()
   ercContractAddress = await contractERC20.address
 
-  // deploy receipt flow contract
-  const ReceiptFlowContract = await ethers.getContractFactory('ReceiptFlowContract')
+  // deploy invoice flow contract
+  const InvoiceFlowContract = await ethers.getContractFactory('InvoiceFlowContract')
   const owners = [ceoSigner.address, ctoSigner.address, cooSigner.address]
   const acceptedTokens = [ercContractAddress]
   const requiredSignatures = 2
-  contract = await ReceiptFlowContract.deploy(owners, withdrawSigner1.address, acceptedTokens, requiredSignatures)
+  contract = await InvoiceFlowContract.deploy(owners, withdrawSigner1.address, acceptedTokens, requiredSignatures)
   await contract.deployed()
 
   // fund test accounts
   await contractERC20.transfer(customerWithBalanceSigner.address, utils.parseEther('500000'))
 })
 
-describe('ReceiptFlowContract', () => {
+describe('InvoiceFlowContract', () => {
   describe('contructor', () => {
     it('should deploy a contract', async () => {
       const [coSigner1, coSigner2, coSigner3, withdrawSigner] = await ethers.getSigners()
-      const ReceiptFlowContract = await ethers.getContractFactory('ReceiptFlowContract')
+      const InvoiceFlowContract = await ethers.getContractFactory('InvoiceFlowContract')
       const owners = [coSigner1.address, coSigner2.address, coSigner3.address]
       const acceptedTokens = [ercContractAddress]
       const requiredSignatures = 2
-      await expect(ReceiptFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)).to.be
+      await expect(InvoiceFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)).to.be
         .not.reverted
     })
 
     it('should fail with OWNERS_ARE_REQUIRED', async () => {
       const [withdrawSigner] = await ethers.getSigners()
-      const ReceiptFlowContract = await ethers.getContractFactory('ReceiptFlowContract')
+      const InvoiceFlowContract = await ethers.getContractFactory('InvoiceFlowContract')
       const owners = []
       const acceptedTokens = [ercContractAddress]
       const requiredSignatures = 2
       await expect(
-        ReceiptFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)
+        InvoiceFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)
       ).to.be.revertedWith('OWNERS_ARE_REQUIRED')
     })
 
     it('should fail with WITHDRAW_ADDRESS_REQUIRED', async () => {
       const [coSigner1, coSigner2, coSigner3] = await ethers.getSigners()
-      const ReceiptFlowContract = await ethers.getContractFactory('ReceiptFlowContract')
+      const InvoiceFlowContract = await ethers.getContractFactory('InvoiceFlowContract')
       const owners = [coSigner1.address, coSigner2.address, coSigner3.address]
       const acceptedTokens = [ercContractAddress]
       const requiredSignatures = 2
       await expect(
-        ReceiptFlowContract.deploy(owners, EMPTY_ADDRESS, acceptedTokens, requiredSignatures)
+        InvoiceFlowContract.deploy(owners, EMPTY_ADDRESS, acceptedTokens, requiredSignatures)
       ).to.be.revertedWith('WITHDRAW_ADDRESS_REQUIRED')
     })
 
     it('should fail with INVALID_APPROVALS_NUMBER', async () => {
       const [coSigner1, coSigner2, coSigner3, withdrawSigner] = await ethers.getSigners()
-      const ReceiptFlowContract = await ethers.getContractFactory('ReceiptFlowContract')
+      const InvoiceFlowContract = await ethers.getContractFactory('InvoiceFlowContract')
       const owners = [coSigner1.address, coSigner2.address, coSigner3.address]
       const acceptedTokens = [ercContractAddress]
       const requiredSignatures = 10
       await expect(
-        ReceiptFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)
+        InvoiceFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)
       ).to.be.revertedWith('INVALID_APPROVALS_NUMBER')
     })
 
     it('should fail with INVALID_TOKEN_ADDRESS', async () => {
       const [coSigner1, coSigner2, coSigner3, withdrawSigner] = await ethers.getSigners()
-      const ReceiptFlowContract = await ethers.getContractFactory('ReceiptFlowContract')
+      const InvoiceFlowContract = await ethers.getContractFactory('InvoiceFlowContract')
       const owners = [coSigner1.address, coSigner2.address, coSigner3.address]
       const notATokenAddress = '0x829432eF1471e34C5499f2f9A11D3e34D4056553'
       const acceptedTokens = [notATokenAddress]
       const requiredSignatures = 2
       await expect(
-        ReceiptFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)
+        InvoiceFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)
       ).to.be.revertedWith('INVALID_TOKEN_ADDRESS')
     })
   })
 
-  describe('registerReceipt', () => {
+  describe('registerInvoice', () => {
     it('should reject with UNAUTHORIZED', async () => {
       const amount = utils.parseEther('1.0')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await expect(
         contract
           .connect(customerWithoutBalanceSigner)
-          .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
+          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
       ).to.be.revertedWith('UNAUTHORIZED')
     })
 
     it('should reject with INVALID_AMOUNT for amount <= 0', async () => {
       const amount = utils.parseEther('0')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await expect(
         contract
           .connect(ceoSigner)
-          .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
+          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
       ).to.be.revertedWith('INVALID_AMOUNT')
     })
 
     it('should reject with INVALID_ADDRESS for empty customer address', async () => {
       const amount = utils.parseEther('1')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await expect(
-        contract.connect(ceoSigner).registerReceipt(receiptId, EMPTY_ADDRESS, amount, ercContractAddress)
+        contract.connect(ceoSigner).registerInvoice(invoiceId, EMPTY_ADDRESS, amount, ercContractAddress)
       ).to.be.revertedWith('INVALID_ADDRESS')
     })
 
-    it('should reject with INVALID_RECEIPT_ID for receipt id = 0', async () => {
+    it('should reject with INVALID_INVOICE_ID for invoice id = 0', async () => {
       const amount = utils.parseEther('1')
-      const receiptId = 0
+      const invoiceId = 0
 
-      // Add the receipt
+      // Add the invoice
       await expect(
         contract
           .connect(ceoSigner)
-          .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
-      ).to.be.revertedWith('INVALID_RECEIPT_ID')
+          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+      ).to.be.revertedWith('INVALID_INVOICE_ID')
     })
 
     it('should reject with ERC20_TOKEN_NOT_SUPPORTED for unsupported token', async () => {
       const amount = utils.parseEther('1')
-      const receiptId = 1
-      // Add the receipt
+      const invoiceId = 1
+      // Add the invoice
       await expect(
         contract
           .connect(ceoSigner)
-          .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, UNSUPPORTED_ERC20)
+          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, UNSUPPORTED_ERC20)
       ).to.be.revertedWith('ERC20_TOKEN_NOT_SUPPORTED')
     })
 
-    it('should reject with RECEIPT_ALREADY_EXIST receipt with same id', async () => {
-      const receiptId = 1
-      // Add the receipt
+    it('should reject with INVOICE_ALREADY_EXIST invoice with same id', async () => {
+      const invoiceId = 1
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, utils.parseEther('1.0'), ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, utils.parseEther('1.0'), ercContractAddress)
       await expect(
         contract
           .connect(ceoSigner)
-          .registerReceipt(receiptId, customerWithoutBalanceSigner.address, utils.parseEther('2.0'), ercContractAddress)
-      ).to.be.revertedWith('RECEIPT_ALREADY_EXIST')
+          .registerInvoice(invoiceId, customerWithoutBalanceSigner.address, utils.parseEther('2.0'), ercContractAddress)
+      ).to.be.revertedWith('INVOICE_ALREADY_EXIST')
     })
 
-    it('should add receipt', async () => {
+    it('should add invoice', async () => {
       const now = parseInt(new Date().getTime() / 1000)
       const amount = utils.parseEther('1.0')
-      const receiptId = 1
-      // Add the receipt
+      const invoiceId = 1
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
-      // Check the receipt exists in the contract
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
-      expect(receipt.customer.toString()).to.eq(customerWithBalanceSigner.address.toString())
-      expect(receipt.id.toBigInt()).to.eq(BigNumber.from(receiptId).toBigInt())
-      expect(receipt.amount.toBigInt()).to.eq(BigNumber.from(amount).toBigInt())
-      expect(receipt.token.toString().toLowerCase()).to.eq(ercContractAddress.toLowerCase())
-      expect(parseInt(receipt.expiration.toBigInt().toString())).to.be.gt(now)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+      // Check the invoice exists in the contract
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
+      expect(invoice.customer.toString()).to.eq(customerWithBalanceSigner.address.toString())
+      expect(invoice.id.toBigInt()).to.eq(BigNumber.from(invoiceId).toBigInt())
+      expect(invoice.amount.toBigInt()).to.eq(BigNumber.from(amount).toBigInt())
+      expect(invoice.token.toString().toLowerCase()).to.eq(ercContractAddress.toLowerCase())
+      expect(parseInt(invoice.expiration.toBigInt().toString())).to.be.gt(now)
     })
   })
 
-  describe('removeReceipt', () => {
-    it('should remove a receipt', async () => {
+  describe('removeInvoice', () => {
+    it('should remove a invoice', async () => {
       const amount = utils.parseEther('1.0')
-      const receiptId = 1
-      // Add the receipt
+      const invoiceId = 1
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
 
-      // cehck receipt exists
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
-      expect(receipt.customer.toString()).to.eq(customerWithBalanceSigner.address.toString())
-      expect(receipt.id.toBigInt()).to.eq(BigNumber.from(receiptId).toBigInt())
-      expect(receipt.amount.toBigInt()).to.eq(BigNumber.from(amount).toBigInt())
-      expect(receipt.token.toString().toLowerCase()).to.eq(ercContractAddress.toLowerCase())
+      // cehck invoice exists
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
+      expect(invoice.customer.toString()).to.eq(customerWithBalanceSigner.address.toString())
+      expect(invoice.id.toBigInt()).to.eq(BigNumber.from(invoiceId).toBigInt())
+      expect(invoice.amount.toBigInt()).to.eq(BigNumber.from(amount).toBigInt())
+      expect(invoice.token.toString().toLowerCase()).to.eq(ercContractAddress.toLowerCase())
 
-      await contract.connect(ceoSigner).removeReceipt(1)
+      await contract.connect(ceoSigner).removeInvoice(1)
 
-      // Check the receipt has been deleted from the contract
-      const receiptAfter = await contract.connect(ceoSigner).receipts(receiptId)
-      expect(receiptAfter.customer).to.be.eq(EMPTY_ADDRESS)
-      expect(receiptAfter.id.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
-      expect(receiptAfter.amount.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
-      expect(receiptAfter.token).to.be.eq(EMPTY_ADDRESS)
-      expect(parseInt(receiptAfter.expiration.toBigInt().toString())).to.be.eq(0)
+      // Check the invoice has been deleted from the contract
+      const invoiceAfter = await contract.connect(ceoSigner).invoices(invoiceId)
+      expect(invoiceAfter.customer).to.be.eq(EMPTY_ADDRESS)
+      expect(invoiceAfter.id.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
+      expect(invoiceAfter.amount.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
+      expect(invoiceAfter.token).to.be.eq(EMPTY_ADDRESS)
+      expect(parseInt(invoiceAfter.expiration.toBigInt().toString())).to.be.eq(0)
     })
 
     it('should reject with UNAUTHORIZED', async () => {
-      await expect(contract.connect(customerWithBalanceSigner).removeReceipt(1)).to.be.revertedWith('UNAUTHORIZED')
+      await expect(contract.connect(customerWithBalanceSigner).removeInvoice(1)).to.be.revertedWith('UNAUTHORIZED')
     })
 
-    it('should reject with INVALID_RECEIPT_ID', async () => {
-      await expect(contract.connect(ceoSigner).removeReceipt(0)).to.be.revertedWith('INVALID_RECEIPT_ID')
+    it('should reject with INVALID_INVOICE_ID', async () => {
+      await expect(contract.connect(ceoSigner).removeInvoice(0)).to.be.revertedWith('INVALID_INVOICE_ID')
     })
 
-    it('should reject with RECEIPT_NOT_FOUND', async () => {
-      await expect(contract.connect(ceoSigner).removeReceipt(10)).to.be.revertedWith('RECEIPT_NOT_FOUND')
+    it('should reject with INVOICE_NOT_FOUND', async () => {
+      await expect(contract.connect(ceoSigner).removeInvoice(10)).to.be.revertedWith('INVOICE_NOT_FOUND')
     })
   })
 
   describe('handleTransfer', () => {
-    it('should pay receipt in token amount', async () => {
+    it('should pay invoice in token amount', async () => {
       const amount = utils.parseEther('0.001')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
-      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, receipt.amount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: amount })
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount })
 
-      // Check the receipt has been deleted from the contract
-      const receiptAfter = await contract.connect(ceoSigner).receipts(receiptId)
-      expect(receiptAfter.customer).to.be.eq(EMPTY_ADDRESS)
-      expect(receiptAfter.id.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
-      expect(receiptAfter.amount.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
-      expect(receiptAfter.token).to.be.eq(EMPTY_ADDRESS)
-      expect(parseInt(receiptAfter.expiration.toBigInt().toString())).to.be.eq(0)
+      // Check the invoice has been deleted from the contract
+      const invoiceAfter = await contract.connect(ceoSigner).invoices(invoiceId)
+      expect(invoiceAfter.customer).to.be.eq(EMPTY_ADDRESS)
+      expect(invoiceAfter.id.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
+      expect(invoiceAfter.amount.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
+      expect(invoiceAfter.token).to.be.eq(EMPTY_ADDRESS)
+      expect(parseInt(invoiceAfter.expiration.toBigInt().toString())).to.be.eq(0)
     })
 
-    it('should pay receipt in eth amount', async () => {
+    it('should pay invoice in eth amount', async () => {
       const amount = utils.parseEther('1')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: amount })
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount })
 
-      // Check the receipt has been deleted from the contract
-      const receiptAfter = await contract.connect(ceoSigner).receipts(receiptId)
-      expect(receiptAfter.customer).to.be.eq(EMPTY_ADDRESS)
-      expect(receiptAfter.id.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
-      expect(receiptAfter.amount.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
-      expect(receiptAfter.token).to.be.eq(EMPTY_ADDRESS)
-      expect(parseInt(receiptAfter.expiration.toBigInt().toString())).to.be.eq(0)
+      // Check the invoice has been deleted from the contract
+      const invoiceAfter = await contract.connect(ceoSigner).invoices(invoiceId)
+      expect(invoiceAfter.customer).to.be.eq(EMPTY_ADDRESS)
+      expect(invoiceAfter.id.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
+      expect(invoiceAfter.amount.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
+      expect(invoiceAfter.token).to.be.eq(EMPTY_ADDRESS)
+      expect(parseInt(invoiceAfter.expiration.toBigInt().toString())).to.be.eq(0)
     })
 
     it('should fail on wrong eth amount', async () => {
       const amount = utils.parseEther('1')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS)
 
       await expect(
-        contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: utils.parseEther('20') })
+        contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: utils.parseEther('20') })
       ).to.be.revertedWith('SENT_AMOUNT_NOT_MATCH')
     })
 
-    it('should return empty receipt', async () => {
-      const receiptId = 99
-      const receiptAfter = await contract.connect(ceoSigner).receipts(receiptId)
-      expect(receiptAfter.customer).to.be.eq(EMPTY_ADDRESS)
-      expect(receiptAfter.id.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
-      expect(receiptAfter.amount.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
-      expect(receiptAfter.token).to.be.eq(EMPTY_ADDRESS)
-      expect(parseInt(receiptAfter.expiration.toBigInt().toString())).to.be.eq(0)
+    it('should return empty invoice', async () => {
+      const invoiceId = 99
+      const invoiceAfter = await contract.connect(ceoSigner).invoices(invoiceId)
+      expect(invoiceAfter.customer).to.be.eq(EMPTY_ADDRESS)
+      expect(invoiceAfter.id.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
+      expect(invoiceAfter.amount.toBigInt()).to.eq(BigNumber.from(0).toBigInt())
+      expect(invoiceAfter.token).to.be.eq(EMPTY_ADDRESS)
+      expect(parseInt(invoiceAfter.expiration.toBigInt().toString())).to.be.eq(0)
     })
 
-    it('should reject with RECEIPT_NOT_FOUND', async () => {
+    it('should reject with INVOICE_NOT_FOUND', async () => {
       const amount = utils.parseEther('0.001')
-      const receiptId = 99
+      const invoiceId = 99
       await expect(
-        contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: amount })
-      ).to.be.revertedWith('RECEIPT_NOT_FOUND')
+        contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount })
+      ).to.be.revertedWith('INVOICE_NOT_FOUND')
     })
 
-    it('should reject with RECEIPT_NOT_FOUND', async () => {
+    it('should reject with INVOICE_NOT_FOUND', async () => {
       const amount = utils.parseEther('0.001')
-      const receiptId = 1
-      // Add the receipt
+      const invoiceId = 1
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
-      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, receipt.amount)
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
     })
 
-    it('should reject with RECEIPT_EXPIRED', async () => {
+    it('should reject with INVOICE_EXPIRED', async () => {
       const amount = utils.parseEther('0.001')
-      const receiptId = 1
-      // Add the receipt
+      const invoiceId = 1
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
-      // Wait for the receipt to expire
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
+      // Wait for the invoice to expire
       await mine(1000)
 
-      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, receipt.amount)
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
       await expect(
-        contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: amount })
-      ).to.be.revertedWith('RECEIPT_EXPIRED')
+        contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount })
+      ).to.be.revertedWith('INVOICE_EXPIRED')
     })
 
     it('should reject with ALLOWANCE_NOT_SUFFICIENT', async () => {
       const amount = utils.parseEther('0.001')
-      const receiptId = 1
-      // Add the receipt
+      const invoiceId = 1
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, utils.parseEther('0.0009'))
       await expect(
-        contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: amount })
+        contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount })
       ).to.be.revertedWith('ALLOWANCE_NOT_SUFFICIENT')
     })
 
     it('should reject with INSUFFICIENT_BALANCE', async () => {
       const amount = utils.parseEther('1')
-      const receiptId = 1
-      // Add the receipt
+      const invoiceId = 1
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithoutBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithoutBalanceSigner.address, amount, ercContractAddress)
       await contractERC20.connect(customerWithoutBalanceSigner).approve(contract.address, amount)
       await expect(
-        contract.connect(customerWithoutBalanceSigner).handleTransfer(receiptId, { value: amount })
+        contract.connect(customerWithoutBalanceSigner).handleTransfer(invoiceId, { value: amount })
       ).to.be.revertedWith('INSUFFICIENT_BALANCE')
     })
   })
@@ -372,16 +372,16 @@ describe('ReceiptFlowContract', () => {
   describe('submitWithdrawRequest', () => {
     it('should register withdraw request', async () => {
       const paymentAmount = utils.parseEther('10')
-      const receiptId = 1
-      // Add the receipt
+      const invoiceId = 1
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
-      // pay receipt
-      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, receipt.amount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      // pay invoice
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       // request withdraw
       const withdrawAmount = utils.parseEther('1')
@@ -403,17 +403,17 @@ describe('ReceiptFlowContract', () => {
 
     it('should reject with INVALID_AMOUNT', async () => {
       const paymentAmount = utils.parseEther('10')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
-      // pay receipt
-      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, receipt.amount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      // pay invoice
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       await expect(
         contract.connect(ceoSigner).submitWithdrawRequest(utils.parseEther('0'), ercContractAddress)
@@ -422,17 +422,17 @@ describe('ReceiptFlowContract', () => {
 
     it('should reject with INSUFFICIENT_BALANCE for ERC20', async () => {
       const paymentAmount = utils.parseEther('1')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
-      // pay receipt
-      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, receipt.amount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      // pay invoice
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       await expect(
         contract.connect(ceoSigner).submitWithdrawRequest(utils.parseEther('10'), ercContractAddress)
@@ -441,17 +441,17 @@ describe('ReceiptFlowContract', () => {
 
     it('should reject with INSUFFICIENT_BALANCE for ETH', async () => {
       const paymentAmount = utils.parseEther('1')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
-      // pay receipt
-      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, receipt.amount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      // pay invoice
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       await expect(
         contract.connect(ceoSigner).submitWithdrawRequest(utils.parseEther('10'), EMPTY_ADDRESS)
@@ -460,17 +460,17 @@ describe('ReceiptFlowContract', () => {
 
     it('should reject with UNAUTHORIZED', async () => {
       const paymentAmount = utils.parseEther('10')
-      const receiptId = 1
+      const invoiceId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
-      const receipt = await contract.connect(ceoSigner).receipts(receiptId)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
-      // pay receipt
-      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, receipt.amount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      // pay invoice
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       // request withdraw
       await expect(
@@ -482,18 +482,18 @@ describe('ReceiptFlowContract', () => {
   describe('confirmWithdrawRequest', () => {
     it('should not execute until required approvals are met', async () => {
       const paymentAmount = utils.parseEther('10')
-      const receiptId = 1
+      const invoiceId = 1
       const withdrawAddressBalanceBefore = await provider.getBalance(withdrawSigner1.address)
       const withdrawAmount = utils.parseEther('1')
       const withdrawRequestId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
 
-      // pay receipt
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      // pay invoice
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       // submit withdraw request
       await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
@@ -523,18 +523,18 @@ describe('ReceiptFlowContract', () => {
 
     it('should confirm ETH withdraw request', async () => {
       const paymentAmount = utils.parseEther('10')
-      const receiptId = 1
+      const invoiceId = 1
       const withdrawAddressBalanceBefore = await provider.getBalance(withdrawSigner1.address)
       const withdrawAmount = utils.parseEther('1')
       const withdrawRequestId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
 
-      // pay receipt
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      // pay invoice
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       // submit withdraw request
       await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
@@ -554,19 +554,19 @@ describe('ReceiptFlowContract', () => {
 
     it('should confirm TOKEN withdraw request', async () => {
       const paymentAmount = utils.parseEther('10')
-      const receiptId = 1
+      const invoiceId = 1
       const withdrawAddressBalanceBefore = await contractERC20.balanceOf(withdrawSigner1.address)
       const withdrawAmount = utils.parseEther('1')
       const withdrawRequestId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
 
-      // pay receipt
+      // pay invoice
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       // submit withdraw request
       await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
@@ -586,18 +586,18 @@ describe('ReceiptFlowContract', () => {
 
     it('should reject with ALREADY_CONFIRMED', async () => {
       const paymentAmount = utils.parseEther('10')
-      const receiptId = 1
+      const invoiceId = 1
       const withdrawAmount = utils.parseEther('1')
       const withdrawRequestId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
 
-      // pay receipt
+      // pay invoice
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
       // submit withdraw request
       await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
       // the withdraw request is already confirmed on the submitWithdrawRequest
@@ -609,19 +609,19 @@ describe('ReceiptFlowContract', () => {
 
     it('should reject with WITHDRAW_ALREADY_EXECUTED', async () => {
       const paymentAmount = utils.parseEther('10')
-      const receiptId = 1
+      const invoiceId = 1
       const withdrawAddressBalanceBefore = await contractERC20.balanceOf(withdrawSigner1.address)
       const withdrawAmount = utils.parseEther('1')
       const withdrawRequestId = 1
 
-      // Add the receipt
+      // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerReceipt(receiptId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
 
-      // pay receipt
+      // pay invoice
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
-      await contract.connect(customerWithBalanceSigner).handleTransfer(receiptId, { value: paymentAmount })
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
       //
       // submit withdraw request
       await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)

@@ -4,17 +4,17 @@ import 'hardhat/console.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol';
 
-contract ReceiptFlowContract {
+contract InvoiceFlowContract {
   using SafeERC20 for IERC20;
 
   /**
-   * @notice The receipt struct
+   * @notice The invoice struct
    * @param customer The customer address
-   * @param receiptId The receipt id
-   * @param amount The amount of the receipt
-   * @param expiration The expiration of the receipt
+   * @param invoiceId The invoice id
+   * @param amount The amount of the invoice
+   * @param expiration The expiration of the invoice
    */
-  struct Receipt {
+  struct Invoice {
     address customer;
     uint256 id;
     uint256 amount;
@@ -47,12 +47,10 @@ contract ReceiptFlowContract {
     bool executed;
   }
 
-  // create event for Receipt created
-
   /**
-   * @notice store the receipts registered
+   * @notice store the invoices registered
    */
-  mapping(uint256 => Receipt) public receipts;
+  mapping(uint256 => Invoice) public invoices;
   /**
    * @notice store the supported tokens
    */
@@ -147,19 +145,19 @@ contract ReceiptFlowContract {
   }
 
   /**
-   * @notice Add a receipt to the smart contract
-   * @param _receiptId The receipt id
+   * @notice Add a invoice to the smart contract
+   * @param _invoiceId The invoice id
    * @param _customer The customer address
-   * @param _amount The amount of the receipt
+   * @param _amount The amount of the invoice
    */
-  function registerReceipt(uint256 _receiptId, address _customer, uint256 _amount, address _token) public onlyOwners {
+  function registerInvoice(uint256 _invoiceId, address _customer, uint256 _amount, address _token) public onlyOwners {
     require(_amount > 0, 'INVALID_AMOUNT');
     require(_customer != address(0), 'INVALID_ADDRESS');
-    require(_receiptId > 0, 'INVALID_RECEIPT_ID');
+    require(_invoiceId > 0, 'INVALID_INVOICE_ID');
     require(supportedTokens[_token] == true, 'ERC20_TOKEN_NOT_SUPPORTED');
-    require(receipts[_receiptId].expiration == 0, 'RECEIPT_ALREADY_EXIST');
-    receipts[_receiptId] = Receipt({
-      id: _receiptId,
+    require(invoices[_invoiceId].expiration == 0, 'INVOICE_ALREADY_EXIST');
+    invoices[_invoiceId] = Invoice({
+      id: _invoiceId,
       customer: _customer,
       amount: _amount,
       token: _token,
@@ -168,38 +166,38 @@ contract ReceiptFlowContract {
   }
 
   /**
-   * @notice Remove a registered receipt
-   * @param _receiptId The receipt id
+   * @notice Remove a registered invoice
+   * @param _invoiceId The invoice id
    */
-  function removeReceipt(uint256 _receiptId) public onlyOwners {
-    require(_receiptId > 0, 'INVALID_RECEIPT_ID');
-    require(receipts[_receiptId].id == _receiptId, 'RECEIPT_NOT_FOUND');
-    delete receipts[_receiptId];
+  function removeInvoice(uint256 _invoiceId) public onlyOwners {
+    require(_invoiceId > 0, 'INVALID_INVOICE_ID');
+    require(invoices[_invoiceId].id == _invoiceId, 'INVOICE_NOT_FOUND');
+    delete invoices[_invoiceId];
   }
 
   /**
    * @notice handleTransfer
-   * and check if the receipt exists and the token is supported
+   * and check if the invoice exists and the token is supported
    */
-  function handleTransfer(uint _receiptId) public payable {
-    Receipt storage receipt = receipts[_receiptId];
+  function handleTransfer(uint _invoiceId) public payable {
+    Invoice storage invoice = invoices[_invoiceId];
 
-    require(receipt.id == _receiptId, 'RECEIPT_NOT_FOUND');
-    require(receipt.customer == address(msg.sender), 'CUSTOMER_ADDRESS_NOT_MATCH');
-    require(block.timestamp <= receipt.expiration, 'RECEIPT_EXPIRED');
+    require(invoice.id == _invoiceId, 'INVOICE_NOT_FOUND');
+    require(invoice.customer == address(msg.sender), 'CUSTOMER_ADDRESS_NOT_MATCH');
+    require(block.timestamp <= invoice.expiration, 'INVOICE_EXPIRED');
 
     // is ERC-20 token
-    if (isContract(receipt.token)) {
-      IERC20 token = IERC20(receipt.token);
-      require(token.allowance(msg.sender, address(this)) >= receipt.amount, 'ALLOWANCE_NOT_SUFFICIENT');
-      require(token.balanceOf(msg.sender) >= receipt.amount, 'INSUFFICIENT_BALANCE');
-      token.safeTransferFrom(msg.sender, address(this), receipt.amount);
-      delete receipts[_receiptId];
+    if (isContract(invoice.token)) {
+      IERC20 token = IERC20(invoice.token);
+      require(token.allowance(msg.sender, address(this)) >= invoice.amount, 'ALLOWANCE_NOT_SUFFICIENT');
+      require(token.balanceOf(msg.sender) >= invoice.amount, 'INSUFFICIENT_BALANCE');
+      token.safeTransferFrom(msg.sender, address(this), invoice.amount);
+      delete invoices[_invoiceId];
       return;
     }
     // is ether
-    require(receipt.amount == msg.value, 'SENT_AMOUNT_NOT_MATCH');
-    delete receipts[_receiptId];
+    require(invoice.amount == msg.value, 'SENT_AMOUNT_NOT_MATCH');
+    delete invoices[_invoiceId];
     return;
   }
 
