@@ -2,6 +2,7 @@ const { expect } = require('chai')
 const { ethers, waffle } = require('hardhat')
 const { utils, BigNumber } = require('ethers')
 const { mine } = require('@nomicfoundation/hardhat-network-helpers')
+const { anyValue } = require('@nomicfoundation/hardhat-chai-matchers/withArgs')
 
 let contract
 let deployerSigner
@@ -17,6 +18,7 @@ let contractERC20
 const EMPTY_ADDRESS = '0x0000000000000000000000000000000000000000'
 const UNSUPPORTED_ERC20 = '0x829432eF1471e34C5499f2f9A11D3e34D4056553'
 const provider = waffle.provider
+const expirationInSec = 300
 
 beforeEach(async () => {
   ;[
@@ -120,7 +122,7 @@ describe('InvoiceFlowContract', () => {
       await expect(
         contract
           .connect(customerWithoutBalanceSigner)
-          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       ).to.be.revertedWith('UNAUTHORIZED')
     })
 
@@ -132,7 +134,7 @@ describe('InvoiceFlowContract', () => {
       await expect(
         contract
           .connect(ceoSigner)
-          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       ).to.be.revertedWith('INVALID_AMOUNT')
     })
 
@@ -142,7 +144,9 @@ describe('InvoiceFlowContract', () => {
 
       // Add the invoice
       await expect(
-        contract.connect(ceoSigner).registerInvoice(invoiceId, EMPTY_ADDRESS, amount, ercContractAddress)
+        contract
+          .connect(ceoSigner)
+          .registerInvoice(invoiceId, EMPTY_ADDRESS, amount, ercContractAddress, expirationInSec)
       ).to.be.revertedWith('INVALID_ADDRESS')
     })
 
@@ -154,7 +158,7 @@ describe('InvoiceFlowContract', () => {
       await expect(
         contract
           .connect(ceoSigner)
-          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       ).to.be.revertedWith('INVALID_INVOICE_ID')
     })
 
@@ -165,7 +169,7 @@ describe('InvoiceFlowContract', () => {
       await expect(
         contract
           .connect(ceoSigner)
-          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, UNSUPPORTED_ERC20)
+          .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, UNSUPPORTED_ERC20, expirationInSec)
       ).to.be.revertedWith('ERC20_TOKEN_NOT_SUPPORTED')
     })
 
@@ -174,12 +178,41 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, utils.parseEther('1.0'), ercContractAddress)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          utils.parseEther('1.0'),
+          ercContractAddress,
+          expirationInSec
+        )
       await expect(
         contract
           .connect(ceoSigner)
-          .registerInvoice(invoiceId, customerWithoutBalanceSigner.address, utils.parseEther('2.0'), ercContractAddress)
+          .registerInvoice(
+            invoiceId,
+            customerWithoutBalanceSigner.address,
+            utils.parseEther('2.0'),
+            ercContractAddress,
+            expirationInSec
+          )
       ).to.be.revertedWith('INVOICE_ALREADY_EXIST')
+    })
+
+    it('should reject with INVALID_EXPIRATION_VALUE', async () => {
+      const invoiceId = 1
+      const invalidExpirationInSec = 0
+      // Add the invoice
+      await expect(
+        contract
+          .connect(ceoSigner)
+          .registerInvoice(
+            invoiceId,
+            customerWithoutBalanceSigner.address,
+            utils.parseEther('1'),
+            ercContractAddress,
+            invalidExpirationInSec
+          )
+      ).to.be.revertedWith('INVALID_EXPIRATION_VALUE')
     })
 
     it('should add invoice', async () => {
@@ -189,7 +222,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       // Check the invoice exists in the contract
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
       expect(invoice.customer.toString()).to.eq(customerWithBalanceSigner.address.toString())
@@ -197,6 +230,18 @@ describe('InvoiceFlowContract', () => {
       expect(invoice.amount.toBigInt()).to.eq(BigNumber.from(amount).toBigInt())
       expect(invoice.token.toString().toLowerCase()).to.eq(ercContractAddress.toLowerCase())
       expect(parseInt(invoice.expiration.toBigInt().toString())).to.be.gt(now)
+    })
+    it('should emit event InvoiceRegistered', async () => {
+      const amount = utils.parseEther('1.0')
+      const invoiceId = 1
+      const tx = await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
+
+      tx.wait()
+      await expect(tx)
+        .to.emit(contract, 'InvoiceRegistered')
+        .withArgs(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, anyValue)
     })
   })
 
@@ -207,7 +252,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
 
       // cehck invoice exists
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
@@ -238,6 +283,21 @@ describe('InvoiceFlowContract', () => {
     it('should reject with INVOICE_NOT_FOUND', async () => {
       await expect(contract.connect(ceoSigner).removeInvoice(10)).to.be.revertedWith('INVOICE_NOT_FOUND')
     })
+
+    it('should emit event InvoiceRegistered', async () => {
+      const amount = utils.parseEther('1.0')
+      const invoiceId = 1
+      // Add the invoice
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
+
+      const tx = await contract.connect(ceoSigner).removeInvoice(invoiceId)
+      tx.wait()
+      await expect(tx)
+        .to.emit(contract, 'InvoiceRemoved')
+        .withArgs(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, anyValue)
+    })
   })
 
   describe('handleTransfer', () => {
@@ -248,7 +308,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount })
@@ -269,7 +329,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS, expirationInSec)
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount })
 
       // Check the invoice has been deleted from the contract
@@ -281,6 +341,34 @@ describe('InvoiceFlowContract', () => {
       expect(parseInt(invoiceAfter.expiration.toBigInt().toString())).to.be.eq(0)
     })
 
+    it('should emit InvoicePaid for ERC-20', async () => {
+      const amount = utils.parseEther('0.001')
+      const invoiceId = 1
+
+      // Add the invoice
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
+      await expect(contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount }))
+        .to.emit(contract, 'InvoicePaid')
+        .withArgs(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, anyValue)
+    })
+
+    it('should emit InvoicePaid for ETH', async () => {
+      const amount = utils.parseEther('0.001')
+      const invoiceId = 1
+
+      // Add the invoice
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS, expirationInSec)
+      await expect(contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount }))
+        .to.emit(contract, 'InvoicePaid')
+        .withArgs(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS, anyValue)
+    })
+
     it('should fail on wrong eth amount', async () => {
       const amount = utils.parseEther('1')
       const invoiceId = 1
@@ -288,7 +376,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS, expirationInSec)
 
       await expect(
         contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: utils.parseEther('20') })
@@ -319,7 +407,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
@@ -331,7 +419,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
       // Wait for the invoice to expire
       await mine(1000)
@@ -348,7 +436,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, utils.parseEther('0.0009'))
       await expect(
         contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: amount })
@@ -361,7 +449,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithoutBalanceSigner.address, amount, ercContractAddress)
+        .registerInvoice(invoiceId, customerWithoutBalanceSigner.address, amount, ercContractAddress, expirationInSec)
       await contractERC20.connect(customerWithoutBalanceSigner).approve(contract.address, amount)
       await expect(
         contract.connect(customerWithoutBalanceSigner).handleTransfer(invoiceId, { value: amount })
@@ -369,14 +457,20 @@ describe('InvoiceFlowContract', () => {
     })
   })
 
-  describe('submitWithdrawRequest', () => {
+  describe('registerWithdrawRequest', () => {
     it('should register withdraw request', async () => {
       const paymentAmount = utils.parseEther('10')
       const invoiceId = 1
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
       // pay invoice
@@ -386,7 +480,7 @@ describe('InvoiceFlowContract', () => {
       // request withdraw
       const withdrawAmount = utils.parseEther('1')
       const withdrawRequestId = 1
-      await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, ercContractAddress)
       const withdrawRequest = await contract.connect(ceoSigner).withdrawRequests(withdrawRequestId)
 
       expect(BigNumber.from(withdrawRequest.amount)).to.eq(withdrawAmount)
@@ -397,7 +491,7 @@ describe('InvoiceFlowContract', () => {
 
     it('should reject with ERC20_TOKEN_NOT_SUPPORTED', async () => {
       await expect(
-        contract.connect(ceoSigner).submitWithdrawRequest(utils.parseEther('1'), UNSUPPORTED_ERC20)
+        contract.connect(ceoSigner).registerWithdrawRequest(utils.parseEther('1'), UNSUPPORTED_ERC20)
       ).to.be.revertedWith('ERC20_TOKEN_NOT_SUPPORTED')
     })
 
@@ -408,7 +502,13 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
       // pay invoice
@@ -416,7 +516,7 @@ describe('InvoiceFlowContract', () => {
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       await expect(
-        contract.connect(ceoSigner).submitWithdrawRequest(utils.parseEther('0'), ercContractAddress)
+        contract.connect(ceoSigner).registerWithdrawRequest(utils.parseEther('0'), ercContractAddress)
       ).to.be.revertedWith('INVALID_AMOUNT')
     })
 
@@ -427,7 +527,13 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
       // pay invoice
@@ -435,7 +541,7 @@ describe('InvoiceFlowContract', () => {
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       await expect(
-        contract.connect(ceoSigner).submitWithdrawRequest(utils.parseEther('10'), ercContractAddress)
+        contract.connect(ceoSigner).registerWithdrawRequest(utils.parseEther('10'), ercContractAddress)
       ).to.be.revertedWith('INSUFFICIENT_BALANCE')
     })
 
@@ -446,7 +552,7 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS, expirationInSec)
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
       // pay invoice
@@ -454,7 +560,7 @@ describe('InvoiceFlowContract', () => {
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       await expect(
-        contract.connect(ceoSigner).submitWithdrawRequest(utils.parseEther('10'), EMPTY_ADDRESS)
+        contract.connect(ceoSigner).registerWithdrawRequest(utils.parseEther('10'), EMPTY_ADDRESS)
       ).to.be.revertedWith('INSUFFICIENT_BALANCE')
     })
 
@@ -465,7 +571,13 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
       const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
 
       // pay invoice
@@ -474,12 +586,38 @@ describe('InvoiceFlowContract', () => {
 
       // request withdraw
       await expect(
-        contract.connect(customerWithBalanceSigner).submitWithdrawRequest(utils.parseEther('0'), ercContractAddress)
+        contract.connect(customerWithBalanceSigner).registerWithdrawRequest(utils.parseEther('0'), ercContractAddress)
       ).to.be.revertedWith('UNAUTHORIZED')
+    })
+
+    it('should emit WithdrawRequestRegistered', async () => {
+      const paymentAmount = utils.parseEther('10')
+      const invoiceId = 1
+      // Add the invoice
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
+      const invoice = await contract.connect(ceoSigner).invoices(invoiceId)
+
+      // pay invoice
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, invoice.amount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
+
+      // request withdraw
+      const withdrawAmount = utils.parseEther('1')
+      await expect(contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, ercContractAddress))
+        .to.emit(contract, 'WithdrawRequestRegistered')
+        .withArgs(anyValue, withdrawAmount, ercContractAddress, false)
     })
   })
 
-  describe('confirmWithdrawRequest', () => {
+  describe('approveWithdrawRequest', () => {
     it('should not execute until required approvals are met', async () => {
       const paymentAmount = utils.parseEther('10')
       const invoiceId = 1
@@ -490,13 +628,13 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS, expirationInSec)
 
       // pay invoice
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       // submit withdraw request
-      await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
 
       const withdrawRequestBeforeApproval = await contract.connect(ceoSigner).withdrawRequests(withdrawRequestId)
       const withdrawAddressBalancePreApproval = await provider.getBalance(withdrawSigner1.address)
@@ -508,7 +646,7 @@ describe('InvoiceFlowContract', () => {
       expect(withdrawAddressBalancePreApproval).to.eq(withdrawAddressBalanceBefore)
 
       // confirm withdraw
-      await contract.connect(ctoSigner).confirmWithdrawRequest(withdrawRequestId)
+      await contract.connect(ctoSigner).approveWithdrawRequest(withdrawRequestId)
 
       const withdrawRequestAfterApproval = await contract.connect(ceoSigner).withdrawRequests(withdrawRequestId)
       const withdrawAddressBalanceAfter = await provider.getBalance(withdrawSigner1.address)
@@ -531,15 +669,15 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS, expirationInSec)
 
       // pay invoice
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       // submit withdraw request
-      await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
       // request withdraw
-      await contract.connect(ctoSigner).confirmWithdrawRequest(withdrawRequestId)
+      await contract.connect(ctoSigner).approveWithdrawRequest(withdrawRequestId)
       const withdrawRequest = await contract.connect(ceoSigner).withdrawRequests(withdrawRequestId)
       const withdrawAddressBalanceAfter = await provider.getBalance(withdrawSigner1.address)
 
@@ -562,16 +700,22 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
 
       // pay invoice
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
 
       // submit withdraw request
-      await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, ercContractAddress)
       // request withdraw
-      await contract.connect(ctoSigner).confirmWithdrawRequest(withdrawRequestId)
+      await contract.connect(ctoSigner).approveWithdrawRequest(withdrawRequestId)
       const withdrawRequest = await contract.connect(ceoSigner).withdrawRequests(withdrawRequestId)
       const withdrawAddressBalanceAfter = await contractERC20.balanceOf(withdrawSigner1.address)
 
@@ -593,16 +737,22 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
 
       // pay invoice
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
       // submit withdraw request
-      await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
-      // the withdraw request is already confirmed on the submitWithdrawRequest
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, ercContractAddress)
+      // the withdraw request is already confirmed on the registerWithdrawRequest
       // trying to confirm withdraw request again
-      await expect(contract.connect(ceoSigner).confirmWithdrawRequest(withdrawRequestId)).to.be.revertedWith(
+      await expect(contract.connect(ceoSigner).approveWithdrawRequest(withdrawRequestId)).to.be.revertedWith(
         'ALREADY_CONFIRMED'
       )
     })
@@ -617,16 +767,22 @@ describe('InvoiceFlowContract', () => {
       // Add the invoice
       await contract
         .connect(ceoSigner)
-        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, ercContractAddress)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
 
       // pay invoice
       await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
       await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
       //
       // submit withdraw request
-      await contract.connect(ceoSigner).submitWithdrawRequest(withdrawAmount, ercContractAddress)
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, ercContractAddress)
       // request withdraw
-      await contract.connect(ctoSigner).confirmWithdrawRequest(withdrawRequestId)
+      await contract.connect(ctoSigner).approveWithdrawRequest(withdrawRequestId)
       const withdrawRequest = await contract.connect(ceoSigner).withdrawRequests(withdrawRequestId)
       const withdrawAddressBalanceAfter = await contractERC20.balanceOf(withdrawSigner1.address)
 
@@ -638,7 +794,7 @@ describe('InvoiceFlowContract', () => {
       expect(withdrawAddressBalanceAfter).to.eq(withdrawAddressBalanceBefore.add(withdrawAmount))
       expect(withdrawAddressBalanceAfter).to.eq(withdrawAmount)
 
-      await expect(contract.connect(cooSigner).confirmWithdrawRequest(withdrawRequestId)).to.be.revertedWith(
+      await expect(contract.connect(cooSigner).approveWithdrawRequest(withdrawRequestId)).to.be.revertedWith(
         'WITHDRAW_ALREADY_EXECUTED'
       )
     })
@@ -646,8 +802,55 @@ describe('InvoiceFlowContract', () => {
     it('should reject with UNAUTHORIZED', async () => {
       const withdrawRequestId = 1
       await expect(
-        contract.connect(customerWithBalanceSigner).confirmWithdrawRequest(withdrawRequestId)
+        contract.connect(customerWithBalanceSigner).approveWithdrawRequest(withdrawRequestId)
       ).to.be.revertedWith('UNAUTHORIZED')
+    })
+
+    it('should emit WithdrawRequestApproved', async () => {
+      const paymentAmount = utils.parseEther('10')
+      const invoiceId = 1
+      const withdrawAmount = utils.parseEther('1')
+      const withdrawRequestId = 1
+
+      // Add the invoice
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS, expirationInSec)
+
+      // pay invoice
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
+
+      // submit withdraw request
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
+      await expect(contract.connect(ctoSigner).approveWithdrawRequest(withdrawRequestId))
+        .to.emit(contract, 'WithdrawRequestApproved')
+        .withArgs(invoiceId, ctoSigner.address, withdrawAmount, EMPTY_ADDRESS)
+    })
+
+    it('should emit WithdrawRequestExecuted', async () => {
+      const paymentAmount = utils.parseEther('10')
+      const invoiceId = 1
+      const withdrawAmount = utils.parseEther('1')
+      const withdrawRequestId = 1
+
+      // Add the invoice
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(
+          invoiceId,
+          customerWithBalanceSigner.address,
+          paymentAmount,
+          ercContractAddress,
+          expirationInSec
+        )
+      // pay invoice
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, paymentAmount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
+      // submit withdraw request
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, ercContractAddress)
+      await expect(contract.connect(ctoSigner).approveWithdrawRequest(withdrawRequestId))
+        .to.emit(contract, 'WithdrawRequestExecuted')
+        .withArgs(withdrawRequestId, withdrawAmount, ercContractAddress, true)
     })
   })
 

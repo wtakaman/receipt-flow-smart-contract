@@ -47,6 +47,18 @@ contract InvoiceFlowContract {
     bool executed;
   }
 
+  event InvoiceRegistered(uint _id, address _customer, uint _amount, address _token, uint _expiration);
+  event InvoicePaid(uint _id, address _customer, uint _amount, address _token, uint _expiration);
+  event InvoiceRemoved(uint _id, address _customer, uint _amount, address _token, uint _expiration);
+
+  event WithdrawRequestRegistered(uint256 _id, uint256 _amount, address _token, bool _executed);
+  event WithdrawRequestApproved(uint256 _id, address _approver, uint256 _amount, address _token);
+  event WithdrawRequestExecuted(uint256 _id, uint256 _amount, address _token, bool _executed);
+
+  event WithdrawAddressChangeRequested(address _newAddress, address _submitter);
+  event WithdrawAddressChangeApproved(address _newAddress, address _submitter);
+  event WithdrawAddressChanged(address _oldAddress, address _newAddress);
+
   /**
    * @notice store the invoices registered
    */
@@ -149,20 +161,30 @@ contract InvoiceFlowContract {
    * @param _invoiceId The invoice id
    * @param _customer The customer address
    * @param _amount The amount of the invoice
+   * @param _expiresInSec expiration config in seconds
    */
-  function registerInvoice(uint256 _invoiceId, address _customer, uint256 _amount, address _token) public onlyOwners {
+  function registerInvoice(
+    uint256 _invoiceId,
+    address _customer,
+    uint256 _amount,
+    address _token,
+    uint _expiresInSec
+  ) public onlyOwners {
     require(_amount > 0, 'INVALID_AMOUNT');
     require(_customer != address(0), 'INVALID_ADDRESS');
     require(_invoiceId > 0, 'INVALID_INVOICE_ID');
+    require(_expiresInSec > 0, 'INVALID_EXPIRATION_VALUE');
     require(supportedTokens[_token] == true, 'ERC20_TOKEN_NOT_SUPPORTED');
     require(invoices[_invoiceId].expiration == 0, 'INVOICE_ALREADY_EXIST');
+    uint expiration = block.timestamp + _expiresInSec;
     invoices[_invoiceId] = Invoice({
       id: _invoiceId,
       customer: _customer,
       amount: _amount,
       token: _token,
-      expiration: block.timestamp + 15 * 60
+      expiration: expiration
     });
+    emit InvoiceRegistered(_invoiceId, _customer, _amount, _token, expiration);
   }
 
   /**
@@ -172,6 +194,13 @@ contract InvoiceFlowContract {
   function removeInvoice(uint256 _invoiceId) public onlyOwners {
     require(_invoiceId > 0, 'INVALID_INVOICE_ID');
     require(invoices[_invoiceId].id == _invoiceId, 'INVOICE_NOT_FOUND');
+    emit InvoiceRemoved(
+      invoices[_invoiceId].id,
+      invoices[_invoiceId].customer,
+      invoices[_invoiceId].amount,
+      invoices[_invoiceId].token,
+      invoices[_invoiceId].expiration
+    );
     delete invoices[_invoiceId];
   }
 
@@ -192,19 +221,32 @@ contract InvoiceFlowContract {
       require(token.allowance(msg.sender, address(this)) >= invoice.amount, 'ALLOWANCE_NOT_SUFFICIENT');
       require(token.balanceOf(msg.sender) >= invoice.amount, 'INSUFFICIENT_BALANCE');
       token.safeTransferFrom(msg.sender, address(this), invoice.amount);
+      emit InvoicePaid(
+        invoices[_invoiceId].id,
+        invoices[_invoiceId].customer,
+        invoices[_invoiceId].amount,
+        invoices[_invoiceId].token,
+        invoices[_invoiceId].expiration
+      );
       delete invoices[_invoiceId];
-      return;
+    } else {
+      // is ether
+      require(invoice.amount == msg.value, 'SENT_AMOUNT_NOT_MATCH');
+      emit InvoicePaid(
+        invoices[_invoiceId].id,
+        invoices[_invoiceId].customer,
+        invoices[_invoiceId].amount,
+        invoices[_invoiceId].token,
+        invoices[_invoiceId].expiration
+      );
+      delete invoices[_invoiceId];
     }
-    // is ether
-    require(invoice.amount == msg.value, 'SENT_AMOUNT_NOT_MATCH');
-    delete invoices[_invoiceId];
-    return;
   }
 
   /**
    * @notice Withdraw funds from the smart contract
    */
-  function registerWithdrawRequest(uint256 _amount, address _token) internal onlyOwners returns (uint256) {
+  function addWithdrawRequest(uint256 _amount, address _token) internal onlyOwners returns (uint256) {
     require(_amount > 0, 'INVALID_AMOUNT');
     require(supportedTokens[_token] == true, 'ERC20_TOKEN_NOT_SUPPORTED');
     if (_token != address(0)) {
@@ -220,6 +262,7 @@ contract InvoiceFlowContract {
     withdrawRequest.token = _token;
     withdrawRequest.executed = false;
     withdrawRequest.data = msg.data;
+    emit WithdrawRequestRegistered(withdrawRequestCount, _amount, _token, false);
     return withdrawRequestCount;
   }
 
@@ -228,9 +271,9 @@ contract InvoiceFlowContract {
    * @param _amount The value of the transaction
    * @param _token The value smart contract address
    */
-  function submitWithdrawRequest(uint _amount, address _token) public onlyOwners returns (uint256) {
-    uint256 id = registerWithdrawRequest(_amount, _token);
-    confirmWithdrawRequest(id);
+  function registerWithdrawRequest(uint _amount, address _token) public onlyOwners returns (uint256) {
+    uint256 id = addWithdrawRequest(_amount, _token);
+    approveWithdrawRequest(id);
     return id;
   }
 
@@ -238,12 +281,13 @@ contract InvoiceFlowContract {
    * @notice confirm a withdraw request
    * @param _id The transaction id
    */
-  function confirmWithdrawRequest(uint256 _id) public onlyOwners {
+  function approveWithdrawRequest(uint256 _id) public onlyOwners {
     require(withdrawRequests[_id].executed == false, 'WITHDRAW_ALREADY_EXECUTED');
     require(withdrawRequests[_id].confirmations[msg.sender] == false, 'ALREADY_CONFIRMED');
     withdrawRequests[_id].confirmations[msg.sender] = true;
+    emit WithdrawRequestApproved(_id, msg.sender, withdrawRequests[_id].amount, withdrawRequests[_id].token);
     if (isWithdrawConfirmed(_id)) {
-      executeWithdraw(_id);
+      executeWithdrawRequest(_id);
     }
   }
 
@@ -251,17 +295,20 @@ contract InvoiceFlowContract {
    * @notice execute a withdraw transaction
    * @param _id The transaction id
    */
-  function executeWithdraw(uint _id) public payable onlyOwners {
+  function executeWithdrawRequest(uint _id) public payable onlyOwners {
+    require(isWithdrawConfirmed(_id), 'NOT_ENOUGH_CONFIRMATIONS');
     require(withdrawRequests[_id].executed == false, 'WITHDRAW_ALREADY_EXECUTED');
     if (withdrawRequests[_id].token == address(0)) {
       (bool success, ) = withdrawAddress.call{ value: withdrawRequests[_id].amount }(withdrawRequests[_id].data);
       require(success);
       withdrawRequests[_id].executed = true;
+      emit WithdrawRequestExecuted(_id, withdrawRequests[_id].amount, withdrawRequests[_id].token, true);
     } else {
       IERC20 tokenContract = IERC20(withdrawRequests[_id].token);
       tokenContract.safeApprove(address(this), withdrawRequests[_id].amount);
       tokenContract.safeTransfer(withdrawAddress, withdrawRequests[_id].amount);
       withdrawRequests[_id].executed = true;
+      emit WithdrawRequestExecuted(_id, withdrawRequests[_id].amount, withdrawRequests[_id].token, true);
     }
   }
 
@@ -302,6 +349,7 @@ contract InvoiceFlowContract {
     require(withdrawAddress != _newAddress, 'NEW_ADDRESS_MUST_BE_SET');
 
     newWithdrawAddress = _newAddress;
+    emit WithdrawAddressChangeRequested(_newAddress, msg.sender);
     confirmWithdrawAddressChange();
   }
 
@@ -311,12 +359,15 @@ contract InvoiceFlowContract {
   function confirmWithdrawAddressChange() public onlyOwners {
     require(withdrawAddressChangeApprovals[msg.sender] == false, 'ALREADY_CONFIRMED');
     withdrawAddressChangeApprovals[msg.sender] = true;
+    emit WithdrawAddressChangeRequested(newWithdrawAddress, msg.sender);
     if (withdrawAddressChangeConfirmationsCount() >= requiredOwnersApprovals) {
+      address oldAddress = withdrawAddress;
       withdrawAddress = newWithdrawAddress;
       newWithdrawAddress = address(0);
       for (uint i = 0; i < owners.length; i++) {
         delete withdrawAddressChangeApprovals[owners[i]];
       }
+      emit WithdrawAddressChangeRequested(oldAddress, newWithdrawAddress);
     }
   }
 
