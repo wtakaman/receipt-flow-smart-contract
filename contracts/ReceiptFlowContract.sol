@@ -34,6 +34,7 @@ contract ReceiptFlowContract {
     address token;
     bool executed;
     bytes data;
+    mapping(address => bool) confirmations;
   }
 
   /*
@@ -46,20 +47,66 @@ contract ReceiptFlowContract {
     bool executed;
   }
 
+  // create event for Receipt created
+
+  /**
+   * @notice store the receipts registered
+   */
   mapping(uint256 => Receipt) public receipts;
+  /**
+   * @notice store the supported tokens
+   */
   mapping(address => bool) supportedTokens;
+  /**
+   * @notice store the withdraw requests
+   */
   mapping(uint => WithdrawRequest) public withdrawRequests;
-  mapping(uint => mapping(address => bool)) public withdrawRequestsConfirmation;
+  /**
+   * @notice store the withdraw address change requests
+   */
   mapping(address => bool) public withdrawAddressChangeApprovals;
+  /**
+   * @notice store the withdraw address change requests
+   */
   address public newWithdrawAddress;
 
+  /**
+   * @notice store the withdraw requests count
+   */
   uint256 withdrawRequestCount = 0;
+
+  /**
+   * @notice store the withdraw address change requests count
+   */
   address public withdrawAddress;
+
+  /**
+   * @notice store the required owners approvals
+   */
   uint256 public requiredOwnersApprovals;
 
+  /**
+   * @notice store the owners
+   */
   address[] public owners;
+
+  /**
+   * @notice store the owners mappings
+   */
+  mapping(address => bool) public ownersMappings;
+
+  /**
+   * @notice store the smart contract owner
+   */
   address smartContractOwner;
 
+  /**
+   * @notice Create a new smart contract
+   * @param _owners The owners of the smart contract
+   * @param _withdrawAddress The withdraw address
+   * @param _acceptedTokens The accepted tokens
+   * @param _requiredOwnersApprovals The required owners approvals
+   */
   constructor(
     address[] memory _owners,
     address _withdrawAddress,
@@ -81,8 +128,11 @@ contract ReceiptFlowContract {
 
     // add owners to mapping
     uint ownersLength = _owners.length;
+    owners = _owners;
+
+    // adding owners to mapping
     for (uint i = 0; i < ownersLength; i++) {
-      owners.push(_owners[i]);
+      ownersMappings[_owners[i]] = true;
     }
 
     // add ether to supported tokens
@@ -102,7 +152,7 @@ contract ReceiptFlowContract {
    * @param _customer The customer address
    * @param _amount The amount of the receipt
    */
-  function addReceipt(uint256 _receiptId, address _customer, uint256 _amount, address _token) public onlyOwners {
+  function registerReceipt(uint256 _receiptId, address _customer, uint256 _amount, address _token) public onlyOwners {
     require(_amount > 0, 'INVALID_AMOUNT');
     require(_customer != address(0), 'INVALID_ADDRESS');
     require(_receiptId > 0, 'INVALID_RECEIPT_ID');
@@ -118,13 +168,23 @@ contract ReceiptFlowContract {
   }
 
   /**
+   * @notice Remove a registered receipt
+   * @param _receiptId The receipt id
+   */
+  function removeReceipt(uint256 _receiptId) public onlyOwners {
+    require(_receiptId > 0, 'INVALID_RECEIPT_ID');
+    require(receipts[_receiptId].id == _receiptId, 'RECEIPT_NOT_FOUND');
+    delete receipts[_receiptId];
+  }
+
+  /**
    * @notice handleTransfer
    * and check if the receipt exists and the token is supported
    */
   function handleTransfer(uint _receiptId) public payable {
     Receipt storage receipt = receipts[_receiptId];
 
-    require(receipt.id > 0, 'RECEIPT_NOT_FOUND');
+    require(receipt.id == _receiptId, 'RECEIPT_NOT_FOUND');
     require(receipt.customer == address(msg.sender), 'CUSTOMER_ADDRESS_NOT_MATCH');
     require(block.timestamp <= receipt.expiration, 'RECEIPT_EXPIRED');
 
@@ -156,7 +216,12 @@ contract ReceiptFlowContract {
       require(address(this).balance >= _amount, 'INSUFFICIENT_BALANCE');
     }
     withdrawRequestCount = withdrawRequestCount + 1;
-    withdrawRequests[withdrawRequestCount] = WithdrawRequest(withdrawRequestCount, _amount, _token, false, msg.data);
+    WithdrawRequest storage withdrawRequest = withdrawRequests[withdrawRequestCount];
+    withdrawRequest.id = withdrawRequestCount;
+    withdrawRequest.amount = _amount;
+    withdrawRequest.token = _token;
+    withdrawRequest.executed = false;
+    withdrawRequest.data = msg.data;
     return withdrawRequestCount;
   }
 
@@ -167,7 +232,7 @@ contract ReceiptFlowContract {
    */
   function submitWithdrawRequest(uint _amount, address _token) public onlyOwners returns (uint256) {
     uint256 id = registerWithdrawRequest(_amount, _token);
-    confirmWithdraw(id);
+    confirmWithdrawRequest(id);
     return id;
   }
 
@@ -175,10 +240,10 @@ contract ReceiptFlowContract {
    * @notice confirm a withdraw request
    * @param _id The transaction id
    */
-  function confirmWithdraw(uint256 _id) public onlyOwners {
+  function confirmWithdrawRequest(uint256 _id) public onlyOwners {
     require(withdrawRequests[_id].executed == false, 'WITHDRAW_ALREADY_EXECUTED');
-    require(withdrawRequestsConfirmation[_id][msg.sender] == false, 'ALREADY_CONFIRMED');
-    withdrawRequestsConfirmation[_id][msg.sender] = true;
+    require(withdrawRequests[_id].confirmations[msg.sender] == false, 'ALREADY_CONFIRMED');
+    withdrawRequests[_id].confirmations[msg.sender] = true;
     if (isWithdrawConfirmed(_id)) {
       executeWithdraw(_id);
     }
@@ -208,13 +273,13 @@ contract ReceiptFlowContract {
    * @return uint
    */
   function isWithdrawConfirmed(uint _id) public view returns (bool) {
-    return getWithdrawConfirmationsCount(_id) >= requiredOwnersApprovals;
+    return withdrawRequestConfirmationsCount(_id) >= requiredOwnersApprovals;
   }
 
-  function getWithdrawConfirmationsCount(uint256 _id) public view returns (uint256) {
+  function withdrawRequestConfirmationsCount(uint256 _id) public view returns (uint256) {
     uint256 numConfirmations = 0;
     for (uint i = 0; i < owners.length; i++) {
-      if (withdrawRequestsConfirmation[_id][owners[i]] == true) {
+      if (withdrawRequests[_id].confirmations[owners[i]] == true) {
         numConfirmations++;
       }
     }
@@ -261,7 +326,7 @@ contract ReceiptFlowContract {
    * @notice only a smart contract owner can call this function
    */
   modifier onlyOwners() {
-    require(isOwner(), 'NOT_AUTHORIZED');
+    require(isOwner(), 'UNAUTHORIZED');
     _;
   }
 
@@ -270,12 +335,7 @@ contract ReceiptFlowContract {
    * @return bool
    */
   function isOwner() internal view returns (bool) {
-    for (uint i = 0; i < owners.length; i++) {
-      if (owners[i] == msg.sender) {
-        return true;
-      }
-    }
-    return false;
+    return ownersMappings[msg.sender];
   }
 
   /**
