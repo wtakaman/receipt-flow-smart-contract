@@ -359,7 +359,7 @@ contract InvoiceFlowContract {
   function confirmWithdrawAddressChange() public onlyOwners {
     require(withdrawAddressChangeApprovals[msg.sender] == false, 'ALREADY_CONFIRMED');
     withdrawAddressChangeApprovals[msg.sender] = true;
-    emit WithdrawAddressChangeRequested(newWithdrawAddress, msg.sender);
+    emit WithdrawAddressChangeApproved(newWithdrawAddress, msg.sender);
     if (withdrawAddressChangeConfirmationsCount() >= requiredOwnersApprovals) {
       address oldAddress = withdrawAddress;
       withdrawAddress = newWithdrawAddress;

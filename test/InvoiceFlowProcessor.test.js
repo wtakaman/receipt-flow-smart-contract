@@ -921,5 +921,35 @@ describe('InvoiceFlowContract', () => {
         'NEW_ADDRESS_MUST_BE_SET'
       )
     })
+
+    it('should emit WithdrawAddressChangeRequested', async () => {
+      expect(contract.connect(ceoSigner).changeWithdrawAddressRequest(withdrawSigner2.address))
+        .to.emit(contract, 'WithdrawAddressChangeRequested')
+        .withArgs(withdrawSigner2.address, ceoSigner.address)
+    })
+
+    it('should emit WithdrawAddressChangeApproved', async () => {
+      // Add change withdraw address
+      await contract.connect(ceoSigner).changeWithdrawAddressRequest(withdrawSigner2.address)
+      // should have one confirmation after request
+      const numConfirmations = await contract.connect(ceoSigner).withdrawAddressChangeConfirmationsCount()
+      expect(numConfirmations).to.be.eq(1)
+      // confirm withdraw address change
+      expect(contract.connect(ctoSigner).confirmWithdrawAddressChange())
+        .to.emit(contract, 'WithdrawAddressChangeApproved')
+        .withArgs(withdrawSigner2.address, ctoSigner.address)
+    })
+
+    it('should emit WithdrawAddressChanged', async () => {
+      // Add change withdraw address
+      await contract.connect(ceoSigner).changeWithdrawAddressRequest(withdrawSigner2.address)
+      // should have one confirmation after request
+      const numConfirmations = await contract.connect(ceoSigner).withdrawAddressChangeConfirmationsCount()
+      expect(numConfirmations).to.be.eq(1)
+      // confirm withdraw address change
+      expect(contract.connect(ctoSigner).confirmWithdrawAddressChange())
+        .to.emit(contract, 'WithdrawAddressChanged')
+        .withArgs(withdrawSigner1.address, withdrawSigner2.address)
+    })
   })
 })
