@@ -418,11 +418,7 @@ contract InvoiceFlowContract {
     return (size > 0);
   }
 
-  function getSummary()
-    public
-    view
-    returns (address[] memory, address[] memory, address, uint)
-  {
+  function getSummary() public view returns (address[] memory, address[] memory, address, uint) {
     return (owners, supportedTokensList, withdrawAddress, requiredOwnersApprovals);
   }
 
@@ -438,7 +434,7 @@ contract InvoiceFlowContract {
     return invoiceIds;
   }
 
-  function find(uint value) internal view returns(uint) {
+  function find(uint value) internal view returns (uint) {
     uint i = 0;
     while (invoiceIds[i] != value) {
       i++;
@@ -451,12 +447,11 @@ contract InvoiceFlowContract {
     removeByIndex(i);
   }
 
-  function removeByIndex(uint i) internal  {
-    while (i<invoiceIds.length-1) {
-      invoiceIds[i] = invoiceIds[i+1];
+  function removeByIndex(uint i) internal {
+    while (i < invoiceIds.length - 1) {
+      invoiceIds[i] = invoiceIds[i + 1];
       i++;
     }
-    delete invoiceIds[invoiceIds.length -1];
+    delete invoiceIds[invoiceIds.length - 1];
   }
-
 }
