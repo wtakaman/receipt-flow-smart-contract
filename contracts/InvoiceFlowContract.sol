@@ -63,18 +63,32 @@ contract InvoiceFlowContract {
    * @notice store the invoices registered
    */
   mapping(uint256 => Invoice) public invoices;
+
+  /**
+   * @notice store the invoices registered
+   */
+  uint[] public invoiceIds;
+
   /**
    * @notice store the supported tokens
    */
   mapping(address => bool) supportedTokens;
+
+  /**
+   * @notice store the supported tokens list
+   */
+  address[] public supportedTokensList;
+
   /**
    * @notice store the withdraw requests
    */
   mapping(uint => WithdrawRequest) public withdrawRequests;
+
   /**
    * @notice store the withdraw address change requests
    */
   mapping(address => bool) public withdrawAddressChangeApprovals;
+
   /**
    * @notice store the withdraw address change requests
    */
@@ -148,11 +162,13 @@ contract InvoiceFlowContract {
     // add ether to supported tokens
     supportedTokens[address(0)] = true;
 
+    supportedTokensList.push(address(0));
     // add accepted tokens to mapping
     uint tokensAcceptedLength = _acceptedTokens.length;
     for (uint i = 0; i < tokensAcceptedLength; i++) {
       require(isContract(_acceptedTokens[i]), 'INVALID_TOKEN_ADDRESS');
       supportedTokens[_acceptedTokens[i]] = true;
+      supportedTokensList.push(_acceptedTokens[i]);
     }
   }
 
@@ -177,6 +193,7 @@ contract InvoiceFlowContract {
     require(supportedTokens[_token] == true, 'ERC20_TOKEN_NOT_SUPPORTED');
     require(invoices[_invoiceId].expiration == 0, 'INVOICE_ALREADY_EXIST');
     uint expiration = block.timestamp + _expiresInSec;
+    invoiceIds.push(_invoiceId);
     invoices[_invoiceId] = Invoice({
       id: _invoiceId,
       customer: _customer,
@@ -202,6 +219,7 @@ contract InvoiceFlowContract {
       invoices[_invoiceId].expiration
     );
     delete invoices[_invoiceId];
+    removeByValue(_invoiceId);
   }
 
   /**
@@ -229,6 +247,7 @@ contract InvoiceFlowContract {
         invoices[_invoiceId].expiration
       );
       delete invoices[_invoiceId];
+      removeByValue(_invoiceId);
     } else {
       // is ether
       require(invoice.amount == msg.value, 'SENT_AMOUNT_NOT_MATCH');
@@ -398,4 +417,46 @@ contract InvoiceFlowContract {
     }
     return (size > 0);
   }
+
+  function getSummary()
+    public
+    view
+    returns (address[] memory, address[] memory, address, uint)
+  {
+    return (owners, supportedTokensList, withdrawAddress, requiredOwnersApprovals);
+  }
+
+  function getBalance(address _token) public view returns (uint256) {
+    if (_token == address(0)) {
+      return address(this).balance;
+    } else {
+      return IERC20(_token).balanceOf(address(this));
+    }
+  }
+
+  function getInvoiceIds() public view returns (uint[] memory) {
+    return invoiceIds;
+  }
+
+  function find(uint value) internal view returns(uint) {
+    uint i = 0;
+    while (invoiceIds[i] != value) {
+      i++;
+    }
+    return i;
+  }
+
+  function removeByValue(uint value) internal {
+    uint i = find(value);
+    removeByIndex(i);
+  }
+
+  function removeByIndex(uint i) internal  {
+    while (i<invoiceIds.length-1) {
+      invoiceIds[i] = invoiceIds[i+1];
+      i++;
+    }
+    delete invoiceIds[invoiceIds.length -1];
+  }
+
 }

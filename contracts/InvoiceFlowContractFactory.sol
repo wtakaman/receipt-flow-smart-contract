@@ -47,6 +47,14 @@ contract InvoiceFlowContractFactory {
   }
 
   /**
+   * @dev This function is used to get all deployed InvoiceFlowContract contracts
+   * @return The list of deployed InvoiceFlowContract contracts
+   */
+  function getDeployedInvoiceFlowContracts() public view returns (address[] memory) {
+    return deployedInvoiceFlowContracts;
+  }
+
+  /**
    * @notice Checks if the caller is an owner
    */
   modifier onlyOwner() {
