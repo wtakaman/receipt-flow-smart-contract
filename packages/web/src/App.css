@@ -1,0 +1,395 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  padding: 2.5rem 1.25rem 5rem;
+  max-width: 1280px;
+  margin: 0 auto;
+  color: #0f172a;
+}
+
+.hero {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.eyebrow {
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6366f1;
+  font-weight: 700;
+}
+
+.hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3rem);
+  margin: 0;
+}
+
+.lead {
+  font-size: 1.05rem;
+  max-width: 60ch;
+  color: #334155;
+  margin: 0.2rem 0 0;
+}
+
+.connect-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.badge {
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 0.25rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.badge.success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.selectors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.selectors label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.selectors select,
+.form select,
+.form input {
+  border: 1px solid #cbd5f5;
+  border-radius: 0.7rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 1rem;
+  background: #fff;
+  font-family: inherit;
+}
+
+.tab-nav {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tab-nav button {
+  border: 1px solid #d7ddff;
+  padding: 0.55rem 1.3rem;
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 600;
+  color: #4c1d95;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-nav button.active {
+  background: #4c1d95;
+  color: #fff;
+  border-color: #4c1d95;
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.panel {
+  background: #fff;
+  border-radius: 1.5rem;
+  padding: 2rem;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+  border: 1px solid #e2e8f0;
+}
+
+.panel h2 {
+  margin: 0;
+}
+
+.section-lead {
+  margin: 0;
+  color: #475569;
+  max-width: 70ch;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.grid.split {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.card {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #0f172a;
+}
+
+.card p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.card ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #1e293b;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.table-card {
+  padding: 0;
+}
+
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  padding: 0 1.25rem 1.25rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table th {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.row-actions button {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.8rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.9rem;
+  color: #475569;
+  gap: 0.25rem;
+}
+
+.form button {
+  align-self: flex-start;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.55rem 1.3rem;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #4c1d95;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #3b0f87;
+}
+
+button:focus,
+button:focus-visible {
+  outline: 3px solid #c4b5fd;
+  outline-offset: 2px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.metric {
+  border-radius: 1rem;
+  padding: 1rem;
+  background: #ede9fe;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.metric strong {
+  font-size: 1.5rem;
+}
+
+footer {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1.5rem;
+  color: #475569;
+}
+
+footer code {
+  background: #f1f5f9;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.4rem;
+}
+
+.pill {
+  border-radius: 999px;
+  padding: 0.15rem 0.75rem;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.pill.success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.pill.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.banner {
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.banner.info {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.banner.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.details {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.details dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.details dd {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.empty {
+  color: #94a3b8;
+}
+
+.event-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.event-feed li {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.event-feed li strong {
+  display: block;
+  color: #0f172a;
+}
+
+.event-feed li span {
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+@media (max-width: 600px) {
+  .app {
+    padding: 2rem 1rem 4rem;
+  }
+
+  .tab-nav {
+    flex-direction: column;
+  }
+
+  .table-wrapper {
+    padding: 0 1rem 1rem;
+  }
+}

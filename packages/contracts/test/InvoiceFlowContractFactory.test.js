@@ -82,4 +82,16 @@ describe('InvoiceFlowContractFactory', () => {
     const deployedInvoiceFlowContract = await contractFactory.deployedInvoiceFlowContracts(0)
     expect(deployedInvoiceFlowContract.length).to.be.not.null
   })
+
+  it('should return deployed contracts via getter', async () => {
+    const owners = [ceoSigner.address, ctoSigner.address, cooSigner.address]
+    const acceptedTokens = [ercContractAddress]
+    const requiredSignatures = 2
+    await contractFactory
+      .connect(deployerSigner)
+      .createInvoiceFlowContract(owners, withdrawSigner1.address, acceptedTokens, requiredSignatures)
+    const deployedList = await contractFactory.getDeployedInvoiceFlowContracts()
+    expect(deployedList).to.have.lengthOf(1)
+    expect(deployedList[0]).to.eq(await contractFactory.deployedInvoiceFlowContracts(0))
+  })
 })

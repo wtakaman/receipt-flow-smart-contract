@@ -1,5 +1,5 @@
 const { expect } = require('chai')
-const { ethers, waffle } = require('hardhat')
+const { ethers } = require('hardhat')
 const { utils, BigNumber } = require('ethers')
 const { mine } = require('@nomicfoundation/hardhat-network-helpers')
 const { anyValue } = require('@nomicfoundation/hardhat-chai-matchers/withArgs')
@@ -17,7 +17,7 @@ let ercContractAddress
 let contractERC20
 const EMPTY_ADDRESS = '0x0000000000000000000000000000000000000000'
 const UNSUPPORTED_ERC20 = '0x829432eF1471e34C5499f2f9A11D3e34D4056553'
-const provider = waffle.provider
+const provider = ethers.provider
 const expirationInSec = 300
 
 beforeEach(async () => {
@@ -455,6 +455,18 @@ describe('InvoiceFlowContract', () => {
         contract.connect(customerWithoutBalanceSigner).handleTransfer(invoiceId, { value: amount })
       ).to.be.revertedWith('INSUFFICIENT_BALANCE')
     })
+
+    it('should reject with CUSTOMER_ADDRESS_NOT_MATCH for different payer', async () => {
+      const amount = utils.parseEther('0.5')
+      const invoiceId = 2
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, amount, EMPTY_ADDRESS, expirationInSec)
+
+      await expect(
+        contract.connect(customerWithoutBalanceSigner).handleTransfer(invoiceId, { value: amount })
+      ).to.be.revertedWith('CUSTOMER_ADDRESS_NOT_MATCH')
+    })
   })
 
   describe('registerWithdrawRequest', () => {
@@ -854,6 +866,72 @@ describe('InvoiceFlowContract', () => {
     })
   })
 
+  describe('executeWithdrawRequest', () => {
+    it('should reject when confirmations are not met', async () => {
+      const paymentAmount = utils.parseEther('2')
+      const invoiceId = 5
+      const withdrawRequestId = 1
+      const withdrawAmount = utils.parseEther('1')
+
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS, expirationInSec)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
+
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
+
+      await expect(contract.connect(ceoSigner).executeWithdrawRequest(withdrawRequestId)).to.be.revertedWith(
+        'NOT_ENOUGH_CONFIRMATIONS'
+      )
+    })
+
+    it('should reject when withdraw was already executed', async () => {
+      const paymentAmount = utils.parseEther('2')
+      const invoiceId = 6
+      const withdrawRequestId = 1
+      const withdrawAmount = utils.parseEther('1')
+
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS, expirationInSec)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
+
+      await contract.connect(ceoSigner).registerWithdrawRequest(withdrawAmount, EMPTY_ADDRESS)
+      await contract.connect(ctoSigner).approveWithdrawRequest(withdrawRequestId)
+
+      await expect(contract.connect(ctoSigner).executeWithdrawRequest(withdrawRequestId)).to.be.revertedWith(
+        'WITHDRAW_ALREADY_EXECUTED'
+      )
+    })
+
+    it('should revert when withdraw target rejects ether', async () => {
+      const paymentAmount = utils.parseEther('1')
+      const invoiceId = 7
+      const withdrawRequestId = 1
+      const RejectEther = await ethers.getContractFactory('RejectEther')
+      const rejectEther = await RejectEther.deploy()
+      await rejectEther.deployed()
+
+      await contract.connect(ceoSigner).changeWithdrawAddressRequest(rejectEther.address)
+      await contract.connect(ctoSigner).confirmWithdrawAddressChange()
+
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(invoiceId, customerWithBalanceSigner.address, paymentAmount, EMPTY_ADDRESS, expirationInSec)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(invoiceId, { value: paymentAmount })
+
+      await contract.connect(ceoSigner).registerWithdrawRequest(paymentAmount, EMPTY_ADDRESS)
+
+      await expect(contract.connect(ctoSigner).approveWithdrawRequest(withdrawRequestId)).to.be.reverted
+    })
+
+    it('should reject execute call for non owners', async () => {
+      await expect(contract.connect(customerWithBalanceSigner).executeWithdrawRequest(1)).to.be.revertedWith(
+        'UNAUTHORIZED'
+      )
+    })
+  })
+
   describe('changeWithdrawAddress', () => {
     it('should change withdraw address', async () => {
       const initialWithdrawAddress = await contract.connect(ceoSigner).withdrawAddress()
@@ -950,6 +1028,92 @@ describe('InvoiceFlowContract', () => {
       expect(contract.connect(ctoSigner).confirmWithdrawAddressChange())
         .to.emit(contract, 'WithdrawAddressChanged')
         .withArgs(withdrawSigner1.address, withdrawSigner2.address)
+    })
+
+    it('should reject confirm withdraw address for non owner', async () => {
+      await expect(contract.connect(customerWithBalanceSigner).confirmWithdrawAddressChange()).to.be.revertedWith(
+        'UNAUTHORIZED'
+      )
+    })
+  })
+
+  describe('invoice id helpers', () => {
+    it('should maintain invoice id list when removing middle entries', async () => {
+      const invoiceIds = [1, 2, 3]
+      const amount = utils.parseEther('1')
+
+      for (const id of invoiceIds) {
+        await contract
+          .connect(ceoSigner)
+          .registerInvoice(id, customerWithBalanceSigner.address, amount, ercContractAddress, expirationInSec)
+      }
+
+      const storedIds = (await contract.connect(ceoSigner).getInvoiceIds()).map((id) => id.toNumber())
+      expect(storedIds).to.deep.eq(invoiceIds)
+
+      await contract.connect(ceoSigner).removeInvoice(invoiceIds[1])
+
+      const storedIdsAfterRemoval = (await contract.connect(ceoSigner).getInvoiceIds()).map((id) => id.toNumber())
+      expect(storedIdsAfterRemoval).to.deep.eq([invoiceIds[0], invoiceIds[2]])
+    })
+  })
+
+  describe('view helpers', () => {
+    it('should return summary data', async () => {
+      const [ownersResult, supportedTokensResult, withdrawAddressResult, requiredApprovalsResult] =
+        await contract.connect(ceoSigner).getSummary()
+
+      expect(ownersResult).to.deep.eq([ceoSigner.address, ctoSigner.address, cooSigner.address])
+      expect(supportedTokensResult).to.include(EMPTY_ADDRESS)
+      expect(supportedTokensResult.map((address) => address.toLowerCase())).to.include(
+        ercContractAddress.toLowerCase()
+      )
+      expect(withdrawAddressResult).to.eq(withdrawSigner1.address)
+      expect(requiredApprovalsResult).to.eq(2)
+    })
+
+    it('should return balances for both eth and erc20 tokens', async () => {
+      const tokenInvoiceId = 42
+      const tokenAmount = utils.parseEther('0.5')
+      const ethInvoiceId = 84
+      const ethAmount = utils.parseEther('0.8')
+
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(tokenInvoiceId, customerWithBalanceSigner.address, tokenAmount, ercContractAddress, expirationInSec)
+      await contractERC20.connect(customerWithBalanceSigner).approve(contract.address, tokenAmount)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(tokenInvoiceId)
+
+      await contract
+        .connect(ceoSigner)
+        .registerInvoice(ethInvoiceId, customerWithBalanceSigner.address, ethAmount, EMPTY_ADDRESS, expirationInSec)
+      await contract.connect(customerWithBalanceSigner).handleTransfer(ethInvoiceId, { value: ethAmount })
+
+      const tokenBalance = await contract.connect(ceoSigner).getBalance(ercContractAddress)
+      const ethBalance = await contract.connect(ceoSigner).getBalance(EMPTY_ADDRESS)
+
+      expect(tokenBalance).to.eq(tokenAmount)
+      expect(ethBalance).to.eq(ethAmount)
+    })
+  })
+
+  describe('internal guard helpers', () => {
+    it('should enforce addWithdrawRequest onlyOwners via harness', async () => {
+      const TestInvoiceFlowContract = await ethers.getContractFactory('TestInvoiceFlowContract')
+      const owners = [ceoSigner.address, ctoSigner.address, cooSigner.address]
+      const acceptedTokens = [ercContractAddress]
+      const requiredSignatures = 2
+      const harness = await TestInvoiceFlowContract.deploy(
+        owners,
+        withdrawSigner1.address,
+        acceptedTokens,
+        requiredSignatures
+      )
+      await harness.deployed()
+
+      await expect(
+        harness.connect(customerWithBalanceSigner).exposedAddWithdrawRequest(utils.parseEther('1'), ercContractAddress)
+      ).to.be.revertedWith('UNAUTHORIZED')
     })
   })
 })

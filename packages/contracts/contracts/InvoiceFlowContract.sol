@@ -324,7 +324,6 @@ contract InvoiceFlowContract {
       emit WithdrawRequestExecuted(_id, withdrawRequests[_id].amount, withdrawRequests[_id].token, true);
     } else {
       IERC20 tokenContract = IERC20(withdrawRequests[_id].token);
-      tokenContract.safeApprove(address(this), withdrawRequests[_id].amount);
       tokenContract.safeTransfer(withdrawAddress, withdrawRequests[_id].amount);
       withdrawRequests[_id].executed = true;
       emit WithdrawRequestExecuted(_id, withdrawRequests[_id].amount, withdrawRequests[_id].token, true);
@@ -386,7 +385,7 @@ contract InvoiceFlowContract {
       for (uint i = 0; i < owners.length; i++) {
         delete withdrawAddressChangeApprovals[owners[i]];
       }
-      emit WithdrawAddressChangeRequested(oldAddress, newWithdrawAddress);
+      emit WithdrawAddressChanged(oldAddress, withdrawAddress);
     }
   }
 
@@ -452,6 +451,6 @@ contract InvoiceFlowContract {
       invoiceIds[i] = invoiceIds[i + 1];
       i++;
     }
-    delete invoiceIds[invoiceIds.length - 1];
+    invoiceIds.pop();
   }
 }
