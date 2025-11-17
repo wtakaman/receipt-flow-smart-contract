@@ -24,6 +24,36 @@ async function main() {
   console.log('Accepted tokens:', acceptedTokens)
   console.log('Required signatures:', requiredSignatures)
 
+  // Validate token addresses are contracts (or zero address for ETH)
+  // Note: RPC may be out of sync, so we warn but don't fail - the contract will validate anyway
+  const skipValidation = process.env.SKIP_TOKEN_VALIDATION === 'true'
+  const zeroAddress = '0x0000000000000000000000000000000000000000'
+  
+  if (!skipValidation) {
+    for (const token of acceptedTokens) {
+      const normalizedToken = token.toLowerCase()
+      if (normalizedToken === zeroAddress) {
+        console.log('Note: Using zero address for ETH payments')
+        continue
+      }
+      // Normalize to checksum address for better error messages
+      const checksumToken = hre.ethers.utils.getAddress(token)
+      console.log(`Checking token contract at ${checksumToken}...`)
+      const code = await hre.ethers.provider.getCode(checksumToken)
+      if (code === '0x' || code === '0x0') {
+        console.warn(`⚠ Warning: No code found at ${checksumToken}`)
+        console.warn(`  This may be due to RPC sync delay. The contract will validate it during deployment.`)
+        console.warn(`  Verify on Etherscan: https://${networkName === 'sepolia' ? 'sepolia.' : ''}etherscan.io/address/${checksumToken}`)
+        console.warn(`  To skip this check, set SKIP_TOKEN_VALIDATION=true in .env`)
+        // Continue anyway - the contract will reject invalid addresses
+      } else {
+        console.log(`✓ Token contract verified at ${checksumToken}`)
+      }
+    }
+  } else {
+    console.log('Skipping token validation (SKIP_TOKEN_VALIDATION=true)')
+  }
+
   const InvoiceFlowContract = await hre.ethers.getContractFactory('InvoiceFlowContract')
   return await InvoiceFlowContract.deploy(ownersEnv, withdrawAddress, acceptedTokens, requiredSignatures)
 }

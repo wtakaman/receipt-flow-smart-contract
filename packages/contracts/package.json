@@ -12,7 +12,8 @@
     "deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia",
     "deploy:mumbai": "npx hardhat run scripts/deploy.js --network mumbai",
     "deploy:hardhat": "npx hardhat run scripts/deploy.js --network hardhat",
-    "prettier": "npm run prettier --workspace packages/contracts"
+    "deploy:token:sepolia": "npx hardhat run scripts/deploy-test-token.js --network sepolia",
+    "deploy:token:mumbai": "npx hardhat run scripts/deploy-test-token.js --network mumbai"
   },
   "keywords": [],
   "author": "",
