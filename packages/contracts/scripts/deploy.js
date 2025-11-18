@@ -21,16 +21,18 @@ async function main() {
   console.log(`Deploying InvoiceFlowContract to ${networkName}`)
   console.log('Owners:', ownersEnv)
   console.log('Withdraw address:', withdrawAddress)
-  console.log('Accepted tokens:', acceptedTokens)
+  // Do not pass ETH zero address; contract auto-enables ETH
+  const zeroAddress = '0x0000000000000000000000000000000000000000'
+  const filteredTokens = acceptedTokens.filter((t) => t.toLowerCase() !== zeroAddress)
+  console.log('Accepted tokens:', filteredTokens)
   console.log('Required signatures:', requiredSignatures)
 
   // Validate token addresses are contracts (or zero address for ETH)
   // Note: RPC may be out of sync, so we warn but don't fail - the contract will validate anyway
   const skipValidation = process.env.SKIP_TOKEN_VALIDATION === 'true'
-  const zeroAddress = '0x0000000000000000000000000000000000000000'
   
   if (!skipValidation) {
-    for (const token of acceptedTokens) {
+    for (const token of filteredTokens) {
       const normalizedToken = token.toLowerCase()
       if (normalizedToken === zeroAddress) {
         console.log('Note: Using zero address for ETH payments')
@@ -55,7 +57,7 @@ async function main() {
   }
 
   const InvoiceFlowContract = await hre.ethers.getContractFactory('InvoiceFlowContract')
-  return await InvoiceFlowContract.deploy(ownersEnv, withdrawAddress, acceptedTokens, requiredSignatures)
+  return await InvoiceFlowContract.deploy(ownersEnv, withdrawAddress, filteredTokens, requiredSignatures)
 }
 
 // We recommend this pattern to be able to use async/await everywhere
@@ -67,4 +69,4 @@ main()
   .catch((error) => {
     console.error(error)
   })
-;``
+;

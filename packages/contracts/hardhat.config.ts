@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 require('@nomiclabs/hardhat-ethers');
 require('@nomicfoundation/hardhat-chai-matchers');
 require('solidity-coverage');
@@ -14,7 +15,8 @@ module.exports = {
     hardhat: {},
     sepolia: {
       url: SEPOLIA_RPC_URL || '',
-      accounts: SEPOLIA_PRIVATE_KEY ? [SEPOLIA_PRIVATE_KEY] : []
+      accounts: SEPOLIA_PRIVATE_KEY ? [SEPOLIA_PRIVATE_KEY] : [],
+      chainId: 11155111
     },
     mumbai: {
       url: MUMBAI_RPC_URL || '',

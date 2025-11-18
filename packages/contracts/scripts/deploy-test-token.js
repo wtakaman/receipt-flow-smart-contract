@@ -22,7 +22,7 @@ async function main() {
   console.log('Token symbol:', await token.symbol())
   console.log('Total supply:', hre.ethers.utils.formatEther(await token.totalSupply()), 'TEST')
   console.log('\nAdd this to your .env file:')
-  console.log(`ACCEPTED_TOKENS=0x0000000000000000000000000000000000000000,${token.address}`)
+  console.log(`ACCEPTED_TOKENS=${token.address}`)
 }
 
 main()

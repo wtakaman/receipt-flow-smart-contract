@@ -100,16 +100,23 @@ describe('InvoiceFlowContract', () => {
       ).to.be.revertedWith('INVALID_APPROVALS_NUMBER')
     })
 
-    it('should fail with INVALID_TOKEN_ADDRESS', async () => {
+    it('should skip invalid token addresses and keep ETH enabled', async () => {
       const [coSigner1, coSigner2, coSigner3, withdrawSigner] = await ethers.getSigners()
       const InvoiceFlowContract = await ethers.getContractFactory('InvoiceFlowContract')
       const owners = [coSigner1.address, coSigner2.address, coSigner3.address]
       const notATokenAddress = '0x829432eF1471e34C5499f2f9A11D3e34D4056553'
       const acceptedTokens = [notATokenAddress]
       const requiredSignatures = 2
+      const sc = await InvoiceFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)
+      await sc.deployed()
+      // ETH should be supported; invalid token should not
+      const [, supportedTokens] = await sc.getSummary()
+      expect(supportedTokens).to.include(EMPTY_ADDRESS)
+      expect(supportedTokens.map((a) => a.toLowerCase())).to.not.include(notATokenAddress.toLowerCase())
+      // Registering invoice with invalid token should be rejected as unsupported
       await expect(
-        InvoiceFlowContract.deploy(owners, withdrawSigner.address, acceptedTokens, requiredSignatures)
-      ).to.be.revertedWith('INVALID_TOKEN_ADDRESS')
+        sc.connect(coSigner1).registerInvoice(999, coSigner1.address, utils.parseEther('1'), notATokenAddress, 60)
+      ).to.be.revertedWith('ERC20_TOKEN_NOT_SUPPORTED')
     })
   })
 

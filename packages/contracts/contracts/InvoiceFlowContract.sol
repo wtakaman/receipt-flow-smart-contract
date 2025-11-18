@@ -159,16 +159,28 @@ contract InvoiceFlowContract {
       ownersMappings[_owners[i]] = true;
     }
 
-    // add ether to supported tokens
-    supportedTokens[address(0)] = true;
-
-    supportedTokensList.push(address(0));
-    // add accepted tokens to mapping
+    // add ether to supported tokens (avoid duplicates)
+    if (!supportedTokens[address(0)]) {
+      supportedTokens[address(0)] = true;
+      supportedTokensList.push(address(0));
+    }
+    // add accepted tokens to mapping (allow 0x0 and skip invalids)
     uint tokensAcceptedLength = _acceptedTokens.length;
     for (uint i = 0; i < tokensAcceptedLength; i++) {
-      require(isContract(_acceptedTokens[i]), 'INVALID_TOKEN_ADDRESS');
-      supportedTokens[_acceptedTokens[i]] = true;
-      supportedTokensList.push(_acceptedTokens[i]);
+      address token = _acceptedTokens[i];
+      // ignore duplicates
+      if (supportedTokens[token]) {
+        continue;
+      }
+      // zero address already added as ETH
+      if (token == address(0)) {
+        continue;
+      }
+      // only add if address has code; skip invalid addresses instead of reverting
+      if (isContract(token)) {
+        supportedTokens[token] = true;
+        supportedTokensList.push(token);
+      }
     }
   }
 
