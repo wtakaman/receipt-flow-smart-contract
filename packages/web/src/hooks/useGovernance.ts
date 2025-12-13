@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
 import type { Address } from 'viem'
 import { invoiceFlowAbi } from '../config/contracts'
@@ -29,41 +29,7 @@ export function useGovernance(contractAddress?: Address, onSummaryChange?: () =>
     }
   })
 
-  async function proposeAddress(address: Address) {
-    if (!contractAddress) throw new Error('Contract not configured')
-    await writeContractAsync({
-      address: contractAddress,
-      abi: invoiceFlowAbi,
-      functionName: 'changeWithdrawAddressRequest',
-      args: [address]
-    })
-  }
-
-  async function confirmAddress() {
-    if (!contractAddress) throw new Error('Contract not configured')
-    await writeContractAsync({
-      address: contractAddress,
-      abi: invoiceFlowAbi,
-      functionName: 'confirmWithdrawAddressChange'
-    })
-    onSummaryChange?.()
-  }
-
-  return {
-    pendingAddress,
-    proposeAddress,
-    confirmAddress
-  }
-}
-import { useCallback } from 'react'
-import { useWriteContract } from 'wagmi'
-import type { Address } from 'viem'
-import { invoiceFlowAbi } from '../config/contracts'
-
-export function useGovernance(contractAddress?: Address) {
-  const { writeContractAsync } = useWriteContract()
-
-  const proposeWithdrawAddress = useCallback(
+  const proposeAddress = useCallback(
     async (address: Address) => {
       if (!contractAddress) throw new Error('Contract not configured')
       await writeContractAsync({
@@ -76,18 +42,21 @@ export function useGovernance(contractAddress?: Address) {
     [contractAddress, writeContractAsync]
   )
 
-  const confirmWithdrawAddress = useCallback(async () => {
+  const confirmAddress = useCallback(async () => {
     if (!contractAddress) throw new Error('Contract not configured')
     await writeContractAsync({
       address: contractAddress,
       abi: invoiceFlowAbi,
       functionName: 'confirmWithdrawAddressChange'
     })
-  }, [contractAddress, writeContractAsync])
+    onSummaryChange?.()
+  }, [contractAddress, onSummaryChange, writeContractAsync])
 
   return {
-    proposeWithdrawAddress,
-    confirmWithdrawAddress
+    pendingAddress,
+    proposeAddress,
+    confirmAddress
   }
 }
+
 

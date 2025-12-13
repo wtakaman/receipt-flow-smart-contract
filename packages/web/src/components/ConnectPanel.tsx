@@ -25,6 +25,19 @@ export function ConnectPanel({
   connectPending,
   pendingConnector
 }: Props) {
+  async function handleConnect(connector: Connector) {
+    const maybeWindow = typeof window !== 'undefined' ? (window as typeof window & { ethereum?: { request: (args: { method: string }) => Promise<unknown> } }) : undefined
+    if (connector.id === 'injected' && maybeWindow?.ethereum?.request) {
+      try {
+        await maybeWindow.ethereum.request({ method: 'eth_requestAccounts' })
+      } catch (err) {
+        // User can cancel; we still fall through to wagmi connect
+        console.warn('Account request rejected or failed', err)
+      }
+    }
+    connect({ connector })
+  }
+
   return (
     <div className="connect-panel">
       {isConnected ? (
@@ -37,14 +50,16 @@ export function ConnectPanel({
           </button>
         </>
       ) : (
-        connectors.map((connector) => {
-          const disabled = !connector.ready || (connectPending && connector.id === pendingConnector?.id)
-          return (
-            <button key={connector.id} type="button" disabled={disabled} onClick={() => connect({ connector })}>
-              {connector.ready ? `Connect ${connector.name}` : `${connector.name} unavailable`}
-            </button>
-          )
-        })
+        connectors
+          .filter((connector) => connector.id !== 'injected') // Remove redundant injected connector
+          .map((connector) => {
+            const isPending = connectPending && connector.id === pendingConnector?.id
+            return (
+              <button key={connector.id} type="button" disabled={isPending} onClick={() => handleConnect(connector)}>
+                {isPending ? 'Connecting…' : `Connect ${connector.name}`}
+              </button>
+            )
+          })
       )}
       {connectError && <p className="banner info">{connectError.message}</p>}
     </div>

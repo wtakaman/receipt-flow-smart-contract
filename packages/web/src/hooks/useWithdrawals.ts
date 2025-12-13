@@ -14,52 +14,62 @@ export function useWithdrawals(contractAddress?: Address) {
     if (!publicClient || !contractAddress) return
     let ignore = false
     ;(async () => {
-      const [registered, approved, executed] = await Promise.all([
-        publicClient.getLogs({
-          address: contractAddress,
-          abi: invoiceFlowAbi,
-          eventName: 'WithdrawRequestRegistered',
-          fromBlock: 0n
-        }),
-        publicClient.getLogs({
-          address: contractAddress,
-          abi: invoiceFlowAbi,
-          eventName: 'WithdrawRequestApproved',
-          fromBlock: 0n
-        }),
-        publicClient.getLogs({
-          address: contractAddress,
-          abi: invoiceFlowAbi,
-          eventName: 'WithdrawRequestExecuted',
-          fromBlock: 0n
-        })
-      ])
+      try {
+        const latest = await publicClient.getBlockNumber()
+        const fromBlock = latest > 9n ? latest - 9n : 0n
+
+        const [registered, approved, executed] = await Promise.all([
+          publicClient.getLogs({
+            address: contractAddress,
+            abi: invoiceFlowAbi,
+            eventName: 'WithdrawRequestRegistered',
+            fromBlock,
+            toBlock: latest
+          }),
+          publicClient.getLogs({
+            address: contractAddress,
+            abi: invoiceFlowAbi,
+            eventName: 'WithdrawRequestApproved',
+            fromBlock,
+            toBlock: latest
+          }),
+          publicClient.getLogs({
+            address: contractAddress,
+            abi: invoiceFlowAbi,
+            eventName: 'WithdrawRequestExecuted',
+            fromBlock,
+            toBlock: latest
+          })
+        ])
 
       if (ignore) return
       const map: Record<string, WithdrawRow> = {}
-      registered.forEach((log) => {
-        const id = (log.args?._id ?? 0n) as bigint
-        map[id.toString()] = {
-          id,
-          token: (log.args?._token as Address) ?? zeroAddress,
-          amountRaw: (log.args?._amount as bigint) ?? 0n,
-          confirmations: [],
-          executed: Boolean(log.args?._executed)
-        }
-      })
-      approved.forEach((log) => {
-        const id = (log.args?._id ?? 0n).toString()
-        const approver = (log.args?._approver as Address) ?? zeroAddress
-        if (!map[id]) return
-        if (!map[id].confirmations.some((addr) => addr.toLowerCase() === approver.toLowerCase())) {
-          map[id].confirmations = [...map[id].confirmations, approver]
-        }
-      })
-      executed.forEach((log) => {
-        const id = (log.args?._id ?? 0n).toString()
-        if (map[id]) map[id].executed = Boolean(log.args?._executed ?? true)
-      })
-      setRows(map)
+        registered.forEach((log) => {
+          const id = (log.args?._id ?? 0n) as bigint
+          map[id.toString()] = {
+            id,
+            token: (log.args?._token as Address) ?? zeroAddress,
+            amountRaw: (log.args?._amount as bigint) ?? 0n,
+            confirmations: [],
+            executed: Boolean(log.args?._executed)
+          }
+        })
+        approved.forEach((log) => {
+          const id = (log.args?._id ?? 0n).toString()
+          const approver = (log.args?._approver as Address) ?? zeroAddress
+          if (!map[id]) return
+          if (!map[id].confirmations.some((addr) => addr.toLowerCase() === approver.toLowerCase())) {
+            map[id].confirmations = [...map[id].confirmations, approver]
+          }
+        })
+        executed.forEach((log) => {
+          const id = (log.args?._id ?? 0n).toString()
+          if (map[id]) map[id].executed = Boolean(log.args?._executed ?? true)
+        })
+        setRows(map)
+      } catch (err) {
+        console.warn('Unable to fetch withdraw history (limited range).', err)
+      }
     })()
 
     return () => {

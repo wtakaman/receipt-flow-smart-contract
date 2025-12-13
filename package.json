@@ -12,6 +12,12 @@
     "test:contracts": "npm run test --workspace packages/contracts",
     "coverage:contracts": "npm run coverage --workspace packages/contracts"
   },
+  "overrides": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1"
+  },
   "dependencies": {
     "@tanstack/react-query": "^5.90.10",
     "prettier": "^3.6.2",

@@ -56,19 +56,30 @@ export function useInvoices(contractAddress?: Address) {
     if (!invoiceContractsData) return []
     return invoiceContractsData
       .map((entry) => {
-        const result = entry.result as ChainInvoice | undefined
-        if (!result || result.id === 0n) return null
-        const amountRaw =
-          (result as { amountRaw?: bigint }).amountRaw ?? (result as { amount?: bigint }).amount ?? 0n
+        const raw = entry.result as
+          | ChainInvoice
+          | [Address, bigint, bigint, Address, bigint]
+          | undefined
+          | null
+        if (!raw) return null
+        // Handle positional or named return shapes
+        type RawInvoice = { customer?: Address; id?: bigint; amountRaw?: bigint; amount?: bigint; token?: Address; expiration?: bigint; 0?: Address; 1?: bigint; 2?: bigint; 3?: Address; 4?: bigint }
+        const r = raw as RawInvoice
+        const customer = r.customer ?? r[0]
+        const id = r.id ?? r[1]
+        const amountRaw = r.amountRaw ?? r.amount ?? r[2] ?? 0n
+        const token = r.token ?? r[3]
+        const expiration = r.expiration ?? r[4] ?? 0n
+        if (!id || id === 0n) return null
         return {
-          id: result.id,
-          customer: result.customer,
-          token: result.token,
+          id,
+          customer,
+          token,
           amountRaw,
-          expiration: result.expiration
+          expiration
         }
       })
-      .filter((value): value is ChainInvoice => Boolean(value))
+      .filter((value): value is ChainInvoice => Boolean(value && value.id && value.id > 0n))
   }, [invoiceContractsData])
 
   useWatchContractEvent({
@@ -168,22 +179,29 @@ export function useInvoices(contractAddress?: Address) {
 
   const fetchEventHistory = useCallback(async () => {
     if (!publicClient || !contractAddress) return
-    const logs = await publicClient.getLogs({
-      address: contractAddress,
-      abi: invoiceFlowAbi,
-      eventName: 'InvoicePaid',
-      fromBlock: 0n
-    })
-    setEventFeed(
-      logs
-        .map((log) => ({
-          title: `Invoice paid #${(log.args?._id ?? 0n).toString()}`,
-          subtitle: `Customer ${shortAddress(log.args?._customer as Address)}`,
-          timestamp: Number(log.blockTimestamp ?? Date.now())
-        }))
-        .slice(-12)
-        .reverse()
-    )
+    try {
+      const latest = await publicClient.getBlockNumber()
+      const fromBlock = latest > 9n ? latest - 9n : 0n
+      const logs = await publicClient.getLogs({
+        address: contractAddress,
+        abi: invoiceFlowAbi,
+        eventName: 'InvoicePaid',
+        fromBlock,
+        toBlock: latest
+      })
+      setEventFeed(
+        logs
+          .map((log) => ({
+            title: `Invoice paid #${(log.args?._id ?? 0n).toString()}`,
+            subtitle: `Customer ${shortAddress(log.args?._customer as Address)}`,
+            timestamp: Number(log.blockTimestamp ?? Date.now())
+          }))
+          .slice(-12)
+          .reverse()
+      )
+    } catch (err) {
+      console.warn('Unable to fetch InvoicePaid history (limited range).', err)
+    }
   }, [contractAddress, publicClient])
 
   useEffect(() => {

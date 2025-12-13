@@ -34,7 +34,7 @@ contract InvoiceFlowContractFactory {
     address _withdrawAddress,
     address[] memory _acceptedTokens,
     uint8 _requiredOwnersApprovals
-  ) external payable onlyOwner {
+  ) external payable {
     InvoiceFlowContract newInvoiceFlowContract = new InvoiceFlowContract(
       _owners,
       _withdrawAddress,

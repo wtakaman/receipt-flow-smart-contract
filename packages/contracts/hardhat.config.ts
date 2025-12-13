@@ -1,10 +1,11 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 require('@nomiclabs/hardhat-ethers');
+require('@nomicfoundation/hardhat-verify');
 require('@nomicfoundation/hardhat-chai-matchers');
 require('solidity-coverage');
 
-const { SEPOLIA_RPC_URL, SEPOLIA_PRIVATE_KEY, MUMBAI_RPC_URL, MUMBAI_PRIVATE_KEY } = process.env;
+const { SEPOLIA_RPC_URL, SEPOLIA_PRIVATE_KEY, MUMBAI_RPC_URL, MUMBAI_PRIVATE_KEY, ETHERSCAN_API_KEY } = process.env;
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
@@ -24,7 +25,7 @@ module.exports = {
     }
   },
   solidity: {
-    version: '0.8.9',
+    version: '0.8.20',
     settings: {
       optimizer: {
         enabled: true,
@@ -40,5 +41,8 @@ module.exports = {
   },
   mocha: {
     timeout: 40000
+  },
+  etherscan: {
+    apiKey: ETHERSCAN_API_KEY || 'DC1AZF1HQ3KKPYUGGNWE45N99EDCM12SA7'
   }
 };

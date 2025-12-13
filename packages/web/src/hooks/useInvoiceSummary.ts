@@ -2,9 +2,9 @@ import { useChainId, useReadContract } from 'wagmi'
 import type { Address } from 'viem'
 import { getInvoiceContractAddress, invoiceFlowAbi } from '../config/contracts'
 
-export function useInvoiceSummary() {
+export function useInvoiceSummary(contractAddressOverride?: Address) {
   const chainId = useChainId()
-  const contractAddress = getInvoiceContractAddress(chainId)
+  const contractAddress = contractAddressOverride ?? getInvoiceContractAddress(chainId)
 
   const { data, refetch, isLoading } = useReadContract({
     address: contractAddress,

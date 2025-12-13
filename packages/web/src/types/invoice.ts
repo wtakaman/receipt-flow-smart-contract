@@ -8,6 +8,17 @@ export type ChainInvoice = {
   expiration: bigint
 }
 
+export type PaidInvoice = {
+  id: bigint
+  customer: Address
+  token: Address
+  amountRaw: bigint
+  expiration: bigint
+  paidAt: number
+  txHash: string
+  blockNumber: bigint
+}
+
 export type WithdrawRow = {
   id: bigint
   token: Address

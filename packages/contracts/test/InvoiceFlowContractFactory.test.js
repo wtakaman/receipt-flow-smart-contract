@@ -57,16 +57,17 @@ describe('InvoiceFlowContractFactory', () => {
       .withArgs(owners, withdrawSigner1.address, acceptedTokens, requiredSignatures)
   })
 
-  it('should reject with UNAUTHORIZED', async () => {
+  it('should allow any signer to deploy a contract', async () => {
     const owners = [ceoSigner.address, ctoSigner.address, cooSigner.address]
     const acceptedTokens = [ercContractAddress]
-    const randomUser = withdrawSigner1
     const requiredSignatures = 2
-    await expect(
-      contractFactory
-        .connect(randomUser)
-        .createInvoiceFlowContract(owners, withdrawSigner1.address, acceptedTokens, requiredSignatures)
-    ).to.revertedWith('UNAUTHORIZED')
+    const tx = await contractFactory
+      .connect(withdrawSigner1)
+      .createInvoiceFlowContract(owners, withdrawSigner1.address, acceptedTokens, requiredSignatures)
+
+    await expect(tx)
+      .to.emit(contractFactory, 'NewInvoiceFlowContract')
+      .withArgs(owners, withdrawSigner1.address, acceptedTokens, requiredSignatures)
   })
 
   it('should list deployed InvoiceFlowContracts', async () => {
@@ -80,7 +81,7 @@ describe('InvoiceFlowContractFactory', () => {
       .to.emit(contractFactory, 'NewInvoiceFlowContract')
       .withArgs(owners, withdrawSigner1.address, acceptedTokens, requiredSignatures)
     const deployedInvoiceFlowContract = await contractFactory.deployedInvoiceFlowContracts(0)
-    expect(deployedInvoiceFlowContract.length).to.be.not.null
+    expect(deployedInvoiceFlowContract).to.not.eq(undefined)
   })
 
   it('should return deployed contracts via getter', async () => {

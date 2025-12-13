@@ -2,8 +2,10 @@ import { createConfig, http } from 'wagmi'
 import { hardhat, polygonMumbai, sepolia } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
 
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
-const sepoliaRpc = import.meta.env.VITE_SEPOLIA_RPC_URL
+const projectIdRaw = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
+const projectId = projectIdRaw && !projectIdRaw.startsWith('<') ? projectIdRaw : undefined
+// Use public RPC as fallback (CORS-friendly, no block limits)
+const sepoliaRpc = import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'
 const mumbaiRpc = import.meta.env.VITE_MUMBAI_RPC_URL
 const hardhatRpc = import.meta.env.VITE_HARDHAT_RPC_URL
 
