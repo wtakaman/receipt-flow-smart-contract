@@ -27,7 +27,7 @@ export function ShareInvoiceModal({ url, onClose }: Props) {
             >
               Copy link
             </button>
-            <a href={url} target="_blank" rel="noreferrer" className="button ghost">
+            <a href={url} target="_blank" rel="noreferrer" className="link-button">
               Open link
             </a>
           </div>

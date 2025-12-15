@@ -6,6 +6,7 @@ import { ConnectPanel } from './components/ConnectPanel'
 import { InvoicesPanel } from './components/panels/InvoicesPanel'
 import { WithdrawalsPanel } from './components/panels/WithdrawalsPanel'
 import { GovernancePanel } from './components/panels/GovernancePanel'
+import { PaidInvoicesPanel } from './components/panels/PaidInvoicesPanel'
 import { RoleSelector } from './components/RoleSelector'
 import { MerchantDashboard } from './components/merchant/MerchantDashboard'
 import { PayerDashboard } from './components/payer/PayerDashboard'
@@ -15,12 +16,13 @@ import { useWithdrawals } from './hooks/useWithdrawals'
 import { useGovernance } from './hooks/useGovernance'
 import { useFactory } from './hooks/useFactory'
 import { usePayerInvoices } from './hooks/usePayerInvoices'
+import { usePaidInvoices } from './hooks/usePaidInvoices'
 import { invoiceFlowAbi, normalizeAddressInput } from './config/contracts'
 import { InvoicePage } from './components/InvoicePage'
 import { ContractPage } from './components/ContractPage'
 
 type Role = 'merchant' | 'payer'
-const tabs = ['Invoices', 'Withdrawals', 'Governance'] as const
+const tabs = ['Invoices', 'Paid', 'Withdrawals', 'Governance'] as const
 type Tab = (typeof tabs)[number]
 type Route =
   | { type: 'home' }
@@ -75,8 +77,9 @@ export default function App() {
 
   const summary = useInvoiceSummary(selectedContract)
   const invoicesState = useInvoices(summary.contractAddress)
-  const withdrawalsState = useWithdrawals(summary.contractAddress)
+  const withdrawalsState = useWithdrawals(summary.contractAddress, summary.supportedTokens)
   const governanceState = useGovernance(summary.contractAddress, summary.refetchSummary)
+  const paidInvoicesState = usePaidInvoices(summary.contractAddress)
 
   const isOwner = useMemo(() => {
     if (!address) return false
@@ -252,9 +255,22 @@ export default function App() {
               ownersCount={summary.owners.length}
               withdrawAddress={summary.withdrawAddress}
               withdrawRows={withdrawalsState.withdrawRows}
+              balances={withdrawalsState.balances}
               registerWithdraw={withdrawalsState.registerWithdrawRequest}
               approveWithdraw={withdrawalsState.approveWithdrawRequest}
               executeWithdraw={withdrawalsState.executeWithdrawRequest}
+            />
+          )}
+
+          {activeTab === 'Paid' && (
+            <PaidInvoicesPanel
+              paidInvoices={paidInvoicesState.paidInvoices}
+              isLoading={paidInvoicesState.isLoading}
+              error={paidInvoicesState.error}
+              hasFetched={paidInvoicesState.hasFetched}
+              onFetch={paidInvoicesState.fetch}
+              onRefresh={paidInvoicesState.refetch}
+              chainId={summary.chainId}
             />
           )}
 

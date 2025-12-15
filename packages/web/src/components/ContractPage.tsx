@@ -56,11 +56,8 @@ export function ContractPage({
         <h2>Contract management</h2>
         <p className="lead">Manage invoices, withdrawals, and governance for this contract.</p>
         <div className="row-actions" style={{ marginTop: '0.5rem' }}>
-          <a className="button ghost" href="#/">
+          <a className="link-button" href="#/">
             ← Back to home
-          </a>
-          <a className="button ghost" href="#/">
-            View contracts
           </a>
         </div>
         <ConnectPanel

@@ -62,6 +62,7 @@ export function PayerDashboard({
                   const key = `${invoice.contractAddress}-${invoice.id.toString()}`
                   const formatted = formatUnits(invoice.amountRaw, meta.decimals)
                   const isExpanded = expandedId === key
+                  const isPaid = invoice.isPaid === true
                 return (
                   <Fragment key={key}>
                     <tr className={isExpanded ? 'row expanded' : ''}>
@@ -71,7 +72,7 @@ export function PayerDashboard({
                       <td>
                         {Number(formatted).toLocaleString(undefined, { maximumFractionDigits: 4 })} {displaySymbol}
                       </td>
-                      <td>{expiration}</td>
+                      <td>{isPaid ? 'Paid' : expiration}</td>
                       <td>
                         <div className="row-actions">
                           <button
@@ -82,9 +83,13 @@ export function PayerDashboard({
                           >
                             {isExpanded ? 'Hide' : 'View'}
                           </button>
-                          <button type="button" onClick={() => onPay(invoice)} disabled={isExpired(invoice.expiration)}>
-                            Pay
-                          </button>
+                          {isPaid ? (
+                            <span className="badge success">Paid</span>
+                          ) : (
+                            <button type="button" onClick={() => onPay(invoice)} disabled={isExpired(invoice.expiration)}>
+                              Pay
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -124,7 +129,7 @@ function InvoiceDetails({
       </div>
       <div>
         <dt>Status</dt>
-        <dd>{isExpired(invoice.expiration) ? 'Expired' : 'Open'}</dd>
+        <dd>{invoice.isPaid ? 'Paid' : isExpired(invoice.expiration) ? 'Expired' : 'Open'}</dd>
       </div>
       <div>
         <dt>Contract</dt>

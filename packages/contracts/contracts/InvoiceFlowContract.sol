@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 import 'hardhat/console.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol';
+import './IReceiptNFT.sol';
 
 contract InvoiceFlowContract {
   using SafeERC20 for IERC20;
@@ -48,7 +49,15 @@ contract InvoiceFlowContract {
   }
 
   event InvoiceRegistered(uint _id, address _customer, uint _amount, address _token, uint _expiration);
-  event InvoicePaid(uint _id, address _customer, uint _amount, address _token, uint _expiration);
+  event InvoicePaid(
+    uint _id,
+    address indexed _customer,
+    uint _amount,
+    address indexed _token,
+    uint _expiration,
+    address _invoiceContract,
+    uint256 _receiptTokenId
+  );
   event InvoiceRemoved(uint _id, address _customer, uint _amount, address _token, uint _expiration);
 
   event WithdrawRequestRegistered(uint256 _id, uint256 _amount, address _token, bool _executed);
@@ -125,6 +134,11 @@ contract InvoiceFlowContract {
   address smartContractOwner;
 
   /**
+   * @notice receipt NFT contract
+   */
+  IReceiptNFT public receiptNFT;
+
+  /**
    * @notice Create a new smart contract
    * @param _owners The owners of the smart contract
    * @param _withdrawAddress The withdraw address
@@ -182,6 +196,13 @@ contract InvoiceFlowContract {
         supportedTokensList.push(token);
       }
     }
+  }
+
+  /**
+   * @notice Set receipt NFT contract for minting receipts on payment
+   */
+  function setReceiptNFT(address _receiptNFT) external onlyOwners {
+    receiptNFT = IReceiptNFT(_receiptNFT);
   }
 
   /**
@@ -244,6 +265,7 @@ contract InvoiceFlowContract {
     require(invoice.id == _invoiceId, 'INVOICE_NOT_FOUND');
     require(invoice.customer == address(msg.sender), 'CUSTOMER_ADDRESS_NOT_MATCH');
     require(block.timestamp <= invoice.expiration, 'INVOICE_EXPIRED');
+    uint256 receiptTokenId = 0;
 
     // is ERC-20 token
     if (isContract(invoice.token)) {
@@ -251,26 +273,37 @@ contract InvoiceFlowContract {
       require(token.allowance(msg.sender, address(this)) >= invoice.amount, 'ALLOWANCE_NOT_SUFFICIENT');
       require(token.balanceOf(msg.sender) >= invoice.amount, 'INSUFFICIENT_BALANCE');
       token.safeTransferFrom(msg.sender, address(this), invoice.amount);
+      if (address(receiptNFT) != address(0)) {
+        receiptTokenId = receiptNFT.mintReceipt(address(this), _invoiceId, msg.sender, invoice.token, invoice.amount);
+      }
       emit InvoicePaid(
         invoices[_invoiceId].id,
         invoices[_invoiceId].customer,
         invoices[_invoiceId].amount,
         invoices[_invoiceId].token,
-        invoices[_invoiceId].expiration
+        invoices[_invoiceId].expiration,
+        address(this),
+        receiptTokenId
       );
       delete invoices[_invoiceId];
       removeByValue(_invoiceId);
     } else {
       // is ether
       require(invoice.amount == msg.value, 'SENT_AMOUNT_NOT_MATCH');
+      if (address(receiptNFT) != address(0)) {
+        receiptTokenId = receiptNFT.mintReceipt(address(this), _invoiceId, msg.sender, invoice.token, invoice.amount);
+      }
       emit InvoicePaid(
         invoices[_invoiceId].id,
         invoices[_invoiceId].customer,
         invoices[_invoiceId].amount,
         invoices[_invoiceId].token,
-        invoices[_invoiceId].expiration
+        invoices[_invoiceId].expiration,
+        address(this),
+        receiptTokenId
       );
       delete invoices[_invoiceId];
+      removeByValue(_invoiceId);
     }
   }
 
@@ -330,14 +363,14 @@ contract InvoiceFlowContract {
     require(isWithdrawConfirmed(_id), 'NOT_ENOUGH_CONFIRMATIONS');
     require(withdrawRequests[_id].executed == false, 'WITHDRAW_ALREADY_EXECUTED');
     if (withdrawRequests[_id].token == address(0)) {
-      (bool success, ) = withdrawAddress.call{ value: withdrawRequests[_id].amount }(withdrawRequests[_id].data);
-      require(success);
       withdrawRequests[_id].executed = true;
+      (bool success, ) = withdrawAddress.call{ value: withdrawRequests[_id].amount }(withdrawRequests[_id].data);
+      require(success, 'ETH_TRANSFER_FAILED');
       emit WithdrawRequestExecuted(_id, withdrawRequests[_id].amount, withdrawRequests[_id].token, true);
     } else {
       IERC20 tokenContract = IERC20(withdrawRequests[_id].token);
-      tokenContract.safeTransfer(withdrawAddress, withdrawRequests[_id].amount);
       withdrawRequests[_id].executed = true;
+      tokenContract.safeTransfer(withdrawAddress, withdrawRequests[_id].amount);
       emit WithdrawRequestExecuted(_id, withdrawRequests[_id].amount, withdrawRequests[_id].token, true);
     }
   }
@@ -377,6 +410,11 @@ contract InvoiceFlowContract {
   function changeWithdrawAddressRequest(address _newAddress) public onlyOwners {
     require(_newAddress != address(0), 'INVALID_ADDRESS');
     require(withdrawAddress != _newAddress, 'NEW_ADDRESS_MUST_BE_SET');
+
+    // Clear approvals from any prior proposal to avoid carry-over
+    for (uint i = 0; i < owners.length; i++) {
+      delete withdrawAddressChangeApprovals[owners[i]];
+    }
 
     newWithdrawAddress = _newAddress;
     emit WithdrawAddressChangeRequested(_newAddress, msg.sender);
@@ -446,11 +484,13 @@ contract InvoiceFlowContract {
   }
 
   function find(uint value) internal view returns (uint) {
-    uint i = 0;
-    while (invoiceIds[i] != value) {
-      i++;
+    uint len = invoiceIds.length;
+    for (uint i = 0; i < len; i++) {
+      if (invoiceIds[i] == value) {
+        return i;
+      }
     }
-    return i;
+    revert('INVOICE_ID_NOT_IN_LIST');
   }
 
   function removeByValue(uint value) internal {

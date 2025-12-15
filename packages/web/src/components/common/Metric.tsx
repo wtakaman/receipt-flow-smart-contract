@@ -6,7 +6,7 @@ type MetricProps = {
 export function Metric({ label, value }: MetricProps) {
   return (
     <div className="metric">
-      <p>{label}</p>
+      <span>{label}</span>
       <strong>{value}</strong>
     </div>
   )

@@ -10,6 +10,7 @@ import './InvoiceFlowContract.sol';
 contract InvoiceFlowContractFactory {
   address[] public deployedInvoiceFlowContracts;
   address public owner;
+  address public defaultReceiptNFT;
 
   event NewInvoiceFlowContract(
     address[] _owners,
@@ -20,6 +21,13 @@ contract InvoiceFlowContractFactory {
 
   constructor() {
     owner = msg.sender;
+  }
+
+  /**
+   * @dev Set a default receipt NFT contract; factory will attempt to link new invoice contracts to it.
+   */
+  function setDefaultReceiptNFT(address _receiptNFT) external onlyOwner {
+    defaultReceiptNFT = _receiptNFT;
   }
 
   /**
@@ -41,6 +49,14 @@ contract InvoiceFlowContractFactory {
       _acceptedTokens,
       _requiredOwnersApprovals
     );
+
+    if (defaultReceiptNFT != address(0)) {
+      try newInvoiceFlowContract.setReceiptNFT(defaultReceiptNFT) {
+        // best-effort; will succeed only if factory is an owner
+      } catch {
+        // ignore if caller is not authorized; front-end can set manually
+      }
+    }
 
     deployedInvoiceFlowContracts.push(address(newInvoiceFlowContract));
     emit NewInvoiceFlowContract(_owners, _withdrawAddress, _acceptedTokens, _requiredOwnersApprovals);

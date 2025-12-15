@@ -1,14 +1,64 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePublicClient, useWatchContractEvent, useWriteContract } from 'wagmi'
 import type { Address } from 'viem'
-import { formatUnits, parseUnits, zeroAddress } from 'viem'
+import { erc20Abi, formatUnits, parseUnits, zeroAddress } from 'viem'
 import { getTokenMeta, invoiceFlowAbi } from '../config/contracts'
 import type { WithdrawRow } from '../types/invoice'
 
-export function useWithdrawals(contractAddress?: Address) {
+type BalanceEntry = {
+  raw: bigint
+  formatted: string
+  symbol: string
+}
+
+export function useWithdrawals(contractAddress?: Address, supportedTokens?: Address[]) {
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient()
   const [rows, setRows] = useState<Record<string, WithdrawRow>>({})
+  const [balances, setBalances] = useState<Record<string, BalanceEntry>>({})
+
+  const fetchBalances = useCallback(async () => {
+    if (!publicClient || !contractAddress) return
+    if (!supportedTokens || supportedTokens.length === 0) {
+      setBalances({})
+      return
+    }
+    try {
+      const entries = await Promise.all(
+        supportedTokens.map(async (token) => {
+          const meta = getTokenMeta(token)
+          let raw = 0n
+          if (token === zeroAddress) {
+            raw = await publicClient.getBalance({ address: contractAddress })
+          } else {
+            raw = (await publicClient.readContract({
+              address: token,
+              abi: erc20Abi,
+              functionName: 'balanceOf',
+              args: [contractAddress]
+            })) as bigint
+          }
+          return {
+            token,
+            meta,
+            raw,
+            formatted: formatUnits(raw, meta.decimals)
+          }
+        })
+      )
+      const map: Record<string, BalanceEntry> = {}
+      entries.forEach((entry) => {
+        map[entry.token.toLowerCase()] = {
+          raw: entry.raw,
+          formatted: entry.formatted,
+          symbol: entry.meta.symbol
+        }
+      })
+      setBalances(map)
+    } catch (err) {
+      console.warn('Unable to fetch balances for withdraw view', err)
+    }
+  }, [publicClient, contractAddress, supportedTokens])
 
   useEffect(() => {
     if (!publicClient || !contractAddress) return
@@ -77,6 +127,10 @@ export function useWithdrawals(contractAddress?: Address) {
     }
   }, [publicClient, contractAddress])
 
+  useEffect(() => {
+    fetchBalances()
+  }, [fetchBalances])
+
   useWatchContractEvent({
     address: contractAddress,
     abi: invoiceFlowAbi,
@@ -135,6 +189,7 @@ export function useWithdrawals(contractAddress?: Address) {
         })
         return next
       })
+      fetchBalances()
     }
   })
 
@@ -155,6 +210,7 @@ export function useWithdrawals(contractAddress?: Address) {
       functionName: 'registerWithdrawRequest',
       args: [amountRaw, token]
     })
+    await fetchBalances()
   }
 
   async function approveWithdrawRequest(id: bigint) {
@@ -165,6 +221,7 @@ export function useWithdrawals(contractAddress?: Address) {
       functionName: 'approveWithdrawRequest',
       args: [id]
     })
+    await fetchBalances()
   }
 
   async function executeWithdrawRequest(id: bigint) {
@@ -175,6 +232,7 @@ export function useWithdrawals(contractAddress?: Address) {
       functionName: 'executeWithdrawRequest',
       args: [id]
     })
+    await fetchBalances()
   }
 
   const withdrawRows = useMemo(() => Object.values(rows).sort((a, b) => Number(b.id - a.id)), [rows])
@@ -184,6 +242,7 @@ export function useWithdrawals(contractAddress?: Address) {
     registerWithdrawRequest,
     approveWithdrawRequest,
     executeWithdrawRequest,
+    balances,
     tokenFormatter: (token: Address, amountRaw: bigint) => {
       const meta = getTokenMeta(token)
       return { ...meta, formatted: formatUnits(amountRaw, meta.decimals) }

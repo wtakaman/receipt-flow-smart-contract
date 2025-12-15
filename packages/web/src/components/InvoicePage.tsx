@@ -50,6 +50,7 @@ export function InvoicePage({
   const [isPaying, setIsPaying] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isPaid, setIsPaid] = useState(false)
+  const [isPaymentSubmitted, setIsPaymentSubmitted] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const isExpired = useMemo(() => {
@@ -80,7 +81,7 @@ export function InvoicePage({
           if (!cancelled) {
             setIsPaid(true)
             setInvoice(null)
-            setStatus('This invoice has been paid or does not exist.')
+            setStatus(null)
           }
           return
         }
@@ -119,7 +120,10 @@ export function InvoicePage({
         }
         console.log('[invoice-page] loaded invoice', invoiceData)
         if (!cancelled) {
-          setIsPaid(false)
+          // Only reset paid flag when not waiting on a submitted payment confirmation
+          if (!isPaymentSubmitted) {
+            setIsPaid(false)
+          }
           setInvoice(invoiceData)
           if (!invoiceData.customer) {
             setStatus('This invoice has no customer set on-chain; payment requires the customer wallet.')
@@ -134,7 +138,7 @@ export function InvoicePage({
     return () => {
       cancelled = true
     }
-  }, [publicClient, contractAddress, invoiceId, refreshKey])
+  }, [publicClient, contractAddress, invoiceId, refreshKey, isPaymentSubmitted])
 
   const pay = async () => {
     if (!invoice) return
@@ -184,6 +188,7 @@ export function InvoicePage({
       })
       setStatus(`Payment successful for invoice #${invoice.id.toString()}!`)
       setIsPaid(true)
+      setIsPaymentSubmitted(true)
       // Refresh invoice data after a short delay to confirm it's been paid
       setTimeout(() => setRefreshKey((k) => k + 1), 2000)
     } catch (err) {
@@ -304,13 +309,14 @@ export function InvoicePage({
                     disabled={
                       isExpired ||
                       isPaying ||
+                      isPaymentSubmitted ||
                       !invoice.customer ||
                       !isConnected ||
                       !address ||
                       safeLower(invoice.customer) !== safeLower(address)
                     }
                   >
-                    {isExpired ? 'Expired' : isPaying ? 'Submitting…' : 'Pay invoice'}
+                    {isExpired ? 'Expired' : isPaying ? 'Submitting…' : isPaymentSubmitted ? 'Submitted…' : 'Pay invoice'}
                   </button>
                 )}
                 {isPaid && (

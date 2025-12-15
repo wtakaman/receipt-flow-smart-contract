@@ -3,15 +3,21 @@ import { usePublicClient } from 'wagmi'
 import type { Address } from 'viem'
 import type { PaidInvoice } from '../types/invoice'
 
+const env = import.meta.env
+const LOG_WINDOW_BLOCKS = BigInt(Number(env.VITE_LOG_WINDOW_BLOCKS ?? 10))
+const LOG_MAX_WINDOWS = Number(env.VITE_LOG_MAX_WINDOWS ?? 200) // total windows to scan
+
 const INVOICE_PAID_EVENT = {
   type: 'event' as const,
   name: 'InvoicePaid',
   inputs: [
     { type: 'uint256', name: '_id', indexed: false },
-    { type: 'address', name: '_customer', indexed: false },
+    { type: 'address', name: '_customer', indexed: true },
     { type: 'uint256', name: '_amount', indexed: false },
-    { type: 'address', name: '_token', indexed: false },
-    { type: 'uint256', name: '_expiration', indexed: false }
+    { type: 'address', name: '_token', indexed: true },
+    { type: 'uint256', name: '_expiration', indexed: false },
+    { type: 'address', name: '_invoiceContract', indexed: false },
+    { type: 'uint256', name: '_receiptTokenId', indexed: false }
   ]
 }
 
@@ -46,31 +52,43 @@ export function usePaidInvoices(contractAddress?: Address) {
 
     try {
       const latestBlock = await publicClient.getBlockNumber()
-      
-      type LogEntry = { args?: { _id?: bigint; _customer?: Address; _token?: Address; _amount?: bigint; _expiration?: bigint }; transactionHash: string; blockNumber: bigint }
-      let logs: LogEntry[] = []
-      
-      // Try large range first (works with public RPCs)
-      try {
-        const largeRange = 50000n // ~7 days on Sepolia
-        const startBlock = latestBlock > largeRange ? latestBlock - largeRange : 0n
-        logs = await publicClient.getLogs({
-          address: contractAddress,
-          event: INVOICE_PAID_EVENT,
-          fromBlock: startBlock,
-          toBlock: latestBlock
-        })
-      } catch {
-        // Fallback to tiny range for Alchemy free tier
-        console.warn('Large block range failed, using 9-block range')
-        const safeRange = 9n
-        const startBlock = latestBlock > safeRange ? latestBlock - safeRange : 0n
-        logs = await publicClient.getLogs({
-          address: contractAddress,
-          event: INVOICE_PAID_EVENT,
-          fromBlock: startBlock,
-          toBlock: latestBlock
-        })
+
+      type LogEntry = {
+        args?: {
+          _id?: bigint
+          _customer?: Address
+          _token?: Address
+          _amount?: bigint
+          _expiration?: bigint
+          _receiptTokenId?: bigint
+        }
+        transactionHash: string
+        blockNumber: bigint
+      }
+
+      // Walk backwards in small windows (configurable) to respect provider limits.
+      const windowSize = LOG_WINDOW_BLOCKS > 0n ? LOG_WINDOW_BLOCKS : 10n
+      const maxWindows = LOG_MAX_WINDOWS > 0 ? LOG_MAX_WINDOWS : 200
+      let toBlock = latestBlock
+      const logs: LogEntry[] = []
+
+      for (let i = 0; i < maxWindows && toBlock >= 0; i++) {
+        const fromBlock = toBlock > (windowSize - 1n) ? toBlock - (windowSize - 1n) : 0n
+        try {
+          const winLogs = await publicClient.getLogs({
+            address: contractAddress,
+            event: INVOICE_PAID_EVENT,
+            fromBlock,
+            toBlock
+          })
+          logs.push(...winLogs)
+        } catch (err) {
+          // If even a tiny window fails, break to avoid hammering the RPC
+          console.warn(`getLogs failed for window ${fromBlock.toString()}-${toBlock.toString()}`, err)
+          break
+        }
+        if (fromBlock === 0n) break
+        toBlock = fromBlock - 1n
       }
 
       // Process logs
@@ -82,7 +100,8 @@ export function usePaidInvoices(contractAddress?: Address) {
         expiration: log.args?._expiration ?? 0n,
         paidAt: Date.now(),
         txHash: log.transactionHash,
-        blockNumber: log.blockNumber
+        blockNumber: log.blockNumber,
+        receiptTokenId: log.args?._receiptTokenId
       }))
 
       // Sort by block number (most recent first)

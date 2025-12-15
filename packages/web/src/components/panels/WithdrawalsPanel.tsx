@@ -11,6 +11,7 @@ type Props = {
   ownersCount: number
   withdrawAddress?: Address
   withdrawRows: WithdrawRow[]
+  balances: Record<string, { raw: bigint; formatted: string; symbol: string }>
   registerWithdraw: (args: { token: Address; amount: string; decimals: number }) => Promise<void>
   approveWithdraw: (id: bigint) => Promise<void>
   executeWithdraw: (id: bigint) => Promise<void>
@@ -23,6 +24,7 @@ export function WithdrawalsPanel({
   ownersCount,
   withdrawAddress,
   withdrawRows,
+  balances,
   registerWithdraw,
   approveWithdraw,
   executeWithdraw
@@ -66,6 +68,28 @@ export function WithdrawalsPanel({
           <p className="hint">
             Needs {requiredApprovals} of {ownersCount} owners. Current withdraw address: {withdrawAddress ? shortAddress(withdrawAddress) : '—'}
           </p>
+        </article>
+        <article className="card">
+          <h3>Contract balances</h3>
+          {supportedTokens.length === 0 && <p className="empty">No supported tokens.</p>}
+          {supportedTokens.length > 0 && (
+            <ul className="details" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {supportedTokens.map((token) => {
+                const meta = getTokenMeta(token)
+                const b = balances[token.toLowerCase()]
+                const formatted = b?.formatted ?? '0'
+                return (
+                  <li key={token} style={{ padding: '0.35rem 0' }}>
+                    <div className="label">{meta.symbol}</div>
+                    <div className="value">
+                      {formatted} {meta.symbol}
+                    </div>
+                    <div className="muted mono">{token}</div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </article>
         <article className="card table-card">
           <div className="table-header">

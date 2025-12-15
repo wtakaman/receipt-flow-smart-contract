@@ -48,6 +48,12 @@ const factoryAddressBook: Partial<Record<number, Address>> = {
   31337: normalizeAddressInput(env.VITE_HARDHAT_FACTORY_ADDRESS)
 }
 
+const receiptNftAddressBook: Partial<Record<number, Address>> = {
+  11155111: normalizeAddressInput(env.VITE_SEPOLIA_RECEIPT_NFT_ADDRESS),
+  80001: normalizeAddressInput(env.VITE_MUMBAI_RECEIPT_NFT_ADDRESS),
+  31337: normalizeAddressInput(env.VITE_HARDHAT_RECEIPT_NFT_ADDRESS)
+}
+
 function parseAddressList(value?: string): Address[] {
   if (!value) return []
   return value
@@ -70,6 +76,11 @@ export function getInvoiceContractAddress(chainId?: number): Address | undefined
 export function getFactoryAddress(chainId?: number): Address | undefined {
   if (chainId && factoryAddressBook[chainId]) return factoryAddressBook[chainId]
   return factoryAddressBook[11155111]
+}
+
+export function getReceiptNftAddress(chainId?: number): Address | undefined {
+  if (chainId && receiptNftAddressBook[chainId]) return receiptNftAddressBook[chainId]
+  return receiptNftAddressBook[11155111]
 }
 
 export function getExtraContracts(chainId?: number): Address[] {

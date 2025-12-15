@@ -124,7 +124,7 @@ export function RegisterInvoiceModal({ open, supportedTokens, defaultToken, onCl
               />
             </label>
             <div className="modal-actions">
-              <button type="button" className="button ghost" onClick={onClose}>
+              <button type="button" className="secondary" onClick={onClose}>
                 Cancel
               </button>
               <button type="submit" disabled={isSubmitting}>

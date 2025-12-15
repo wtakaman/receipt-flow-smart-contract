@@ -10,6 +10,7 @@ export type PayerInvoice = ChainInvoice & {
   tokenName?: string
   tokenSymbol?: string
   tokenDecimals?: number
+  isPaid?: boolean
 }
 
 export function usePayerInvoices(factoryAddress?: Address, customer?: Address, contractList?: Address[]) {
@@ -133,13 +134,15 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
               expiration: invoice.expiration?.toString?.() ?? '0',
               tokenMeta: meta
             })
+            // If expiration is zero, treat as paid/removed; keep as Paid if needed for history, but not payable
             if (invoice.customer && customer && invoice.customer.toLowerCase() === customer.toLowerCase()) {
               found.push({
                 ...invoice,
                 contractAddress,
                 tokenName: meta.name,
                 tokenSymbol: meta.symbol,
-                tokenDecimals: meta.decimals
+                tokenDecimals: meta.decimals,
+                isPaid: invoice.expiration === 0n
               })
             }
           } catch (err) {
@@ -189,6 +192,12 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
           gas: 3_000_000n
         })
         setPaymentMessage(`Invoice #${invoice.id.toString()} payment submitted.`)
+        // Mark as paid locally so UI immediately reflects status
+        setInvoices((prev) =>
+          prev.map((inv) =>
+            inv.contractAddress === invoice.contractAddress && inv.id === invoice.id ? { ...inv, isPaid: true } : inv
+          )
+        )
         await refresh()
       } catch (err) {
         setPaymentMessage((err as Error).message)

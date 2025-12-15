@@ -4,6 +4,7 @@ import { formatUnits } from 'viem'
 import { getTokenMeta } from '../../config/contracts'
 import type { PaidInvoice } from '../../types/invoice'
 import { Metric } from '../common/Metric'
+import { getReceiptNftAddress } from '../../config/contracts'
 
 type Props = {
   paidInvoices: PaidInvoice[]
@@ -51,6 +52,8 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
     {} as Record<string, bigint>
   )
 
+  const receiptNftAddress = getReceiptNftAddress(chainId)
+
   return (
     <section className="panel">
       <h2>Paid Invoices</h2>
@@ -82,6 +85,7 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
                 <th>Token</th>
                 <th>Amount</th>
                 <th>Paid at</th>
+                <th>Receipt</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -111,6 +115,7 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
                       <td>{meta.symbol}</td>
                       <td>{amountDisplay}</td>
                       <td>{paidDate}</td>
+                      <td>{invoice.receiptTokenId ? `#${invoice.receiptTokenId.toString()}` : '—'}</td>
                       <td>
                         <div className="row-actions">
                           <button type="button" onClick={() => setExpandedId(isExpanded ? null : key)}>
@@ -125,6 +130,17 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
                           >
                             🔗
                           </a>
+                          {receiptNftAddress && invoice.receiptTokenId && (
+                            <a
+                              className="icon-link"
+                              href={`https://sepolia.etherscan.io/nft/${receiptNftAddress}/${invoice.receiptTokenId.toString()}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="View receipt NFT"
+                            >
+                              🧾
+                            </a>
+                          )}
                         </div>
                       </td>
                     </tr>

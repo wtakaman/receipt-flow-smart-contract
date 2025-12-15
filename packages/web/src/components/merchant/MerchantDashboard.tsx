@@ -5,7 +5,6 @@ import { useInvoiceSummary } from '../../hooks/useInvoiceSummary'
 
 type Props = {
   address?: Address
-  deployedContracts: Address[]
   ownedContracts: Address[]
   selectedContract?: Address
   onSelectContract: (addr: Address) => void
@@ -21,62 +20,67 @@ type Props = {
 
 export function MerchantDashboard({
   address,
-  deployedContracts,
   ownedContracts,
   selectedContract,
   onSelectContract,
   onCreateContract,
-  isCreating
+  isCreating,
+  children
 }: Props) {
   const [showCreate, setShowCreate] = useState(false)
+  const hasOwned = ownedContracts.length > 0
+  const currentSelection = selectedContract ?? (hasOwned ? ownedContracts[0] : undefined)
 
   return (
     <>
       <section className="panel">
         <h2>Merchant console</h2>
         <p className="section-lead">Deploy and manage the invoice contracts you own.</p>
-        <div className="grid split">
-          <article className="card">
-            <div className="table-header">
-              <h3>Your contracts</h3>
-              <button type="button" onClick={() => setShowCreate(true)}>
-                Add contract
-              </button>
+        <article className="card table-card">
+          <div className="table-header" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>Your contracts</h3>
+              {hasOwned && (
+                <select
+                  value={currentSelection ?? ''}
+                  onChange={(e) => onSelectContract(e.target.value as Address)}
+                  style={{ minWidth: '260px' }}
+                >
+                  {ownedContracts.map((addr) => (
+                    <option key={addr} value={addr}>
+                      {addr}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
-            {ownedContracts.length === 0 && <p className="empty">No owned contracts detected for this wallet.</p>}
-            {ownedContracts.length > 0 && (
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Contract</th>
-                      <th>Owners</th>
-                      <th>Withdraw</th>
-                      <th>Approvals</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ownedContracts.map((addr) => (
-                      <ContractRow
-                        key={addr}
-                        addr={addr}
-                        selectedContract={selectedContract}
-                        onSelectContract={onSelectContract}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {deployedContracts.length > 0 && (
-              <p className="hint">
-                All deployed contracts ({deployedContracts.length}):{' '}
-                {deployedContracts.map((addr) => shortAddress(addr)).join(', ')}
-              </p>
-            )}
-          </article>
-        </div>
+            <button type="button" onClick={() => setShowCreate(true)}>
+              Add contract
+            </button>
+          </div>
+
+          {!hasOwned && <p className="empty" style={{ padding: '1rem 1.25rem' }}>No owned contracts detected for this wallet.</p>}
+
+          {hasOwned && currentSelection && (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Contract</th>
+                    <th>Owners</th>
+                    <th>Withdraw</th>
+                    <th>Approvals</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <ContractRow addr={currentSelection} />
+                </tbody>
+              </table>
+            </div>
+          )}
+        </article>
+
+        {children}
       </section>
       {showCreate && (
         <div className="modal-backdrop" onClick={() => setShowCreate(false)}>
@@ -105,42 +109,17 @@ export function MerchantDashboard({
 }
 
 function ContractRow({
-  addr,
-  selectedContract,
-  onSelectContract
+  addr
 }: {
   addr: Address
-  selectedContract?: Address
-  onSelectContract: (addr: Address) => void
 }) {
   const summary = useInvoiceSummary(addr)
-  return (
+  return ( 
     <tr>
-      <td>{shortAddress(addr)}</td>
+      <td>{addr}</td>
       <td>{summary.isLoadingSummary ? '…' : summary.owners.length}</td>
-      <td>{summary.isLoadingSummary ? '…' : shortAddress(summary.withdrawAddress)}</td>
+      <td>{summary.isLoadingSummary ? '…' : summary.withdrawAddress}</td>
       <td>{summary.isLoadingSummary ? '…' : summary.requiredApprovals}</td>
-      <td>
-        <div className="row-actions">
-          <button
-            type="button"
-            className={addr === selectedContract ? 'active' : ''}
-            onClick={() => onSelectContract(addr)}
-          >
-            Select
-          </button>
-          <a className="icon-link" href={`#/contract/${addr}`}>
-            Manage
-          </a>
-        </div>
-      </td>
     </tr>
   )
 }
-
-function shortAddress(value?: Address | string, size = 4) {
-  if (!value) return ''
-  return `${value.slice(0, size + 2)}…${value.slice(-size)}`
-}
-
-

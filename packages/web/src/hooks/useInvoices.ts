@@ -70,6 +70,8 @@ export function useInvoices(contractAddress?: Address) {
         const amountRaw = r.amountRaw ?? r.amount ?? r[2] ?? 0n
         const token = r.token ?? r[3]
         const expiration = r.expiration ?? r[4] ?? 0n
+        // If expiration is zero, treat as paid/removed and do not include in open list
+        if (expiration == 0n) return null
         if (!id || id === 0n) return null
         return {
           id,

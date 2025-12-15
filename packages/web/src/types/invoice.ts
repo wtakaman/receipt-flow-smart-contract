@@ -17,6 +17,7 @@ export type PaidInvoice = {
   paidAt: number
   txHash: string
   blockNumber: bigint
+  receiptTokenId?: bigint
 }
 
 export type WithdrawRow = {
