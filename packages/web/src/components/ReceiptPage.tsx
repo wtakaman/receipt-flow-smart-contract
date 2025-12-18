@@ -4,13 +4,11 @@ import { decodeEventLog, erc20Abi, formatUnits } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { addTokenMeta, getTokenMeta, receiptNftAbi } from '../config/contracts'
 import logoSvg from '../assets/logo.svg'
-import type { ReactNode } from 'react'
 
 type Props = {
   receiptNftAddress: Address
   tokenId: bigint
   txHash?: string
-  walletButton?: ReactNode
 }
 
 type ReceiptData = {
@@ -84,7 +82,7 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
     return () => {
       cancelled = true
     }
-  }, [publicClient, receiptNftAddress, tokenId, resolvedTxHash])
+  }, [publicClient, receiptNftAddress, tokenId, resolvedTxHash, txHash])
 
   useEffect(() => {
     let cancelled = false
@@ -98,9 +96,13 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
           throw new Error('Receipt not found')
         }
 
-        const { invoiceContract, invoiceId, payer, token, amount, paidAt, receiptAddress, resolvedToken } = receipt
+        const { invoiceContract, invoiceId, payer, token, amount, paidAt, receiptAddress, resolvedToken, txHash: receiptTx } =
+          receipt
         setResolvedAddress(receiptAddress)
         setResolvedTokenId(resolvedToken)
+        if (!resolvedTxHash && receiptTx) {
+          setResolvedTxHash(receiptTx)
+        }
 
         let meta = getTokenMeta(token)
         const needsOnchain =
@@ -152,7 +154,7 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
     return () => {
       cancelled = true
     }
-  }, [publicClient, receiptNftAddress, tokenId, txHash])
+  }, [publicClient, receiptNftAddress, tokenId, txHash, resolvedTxHash])
 
   const copyLink = () => {
     if (navigator?.clipboard?.writeText) {
@@ -171,9 +173,9 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
     <section className="panel receipt-page">
       <header className="hero">
         <div className="hero-top">
-          <div className="hero-brand">
-            <img src={logoSvg} alt="Receipt Flow" className="hero-logo" />
-            <p className="eyebrow">Receipt Flow Console</p>
+          <div className="logo-mark">
+            <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
+            <span>Receipt Flow</span>
           </div>
         </div>
         <h1>Receipt NFT</h1>
@@ -183,29 +185,14 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
       <div className="card receipt-card">
         <div className="receipt-summary">
           <div className="receipt-meta">
-            <div className="receipt-brand">
-              <img src={logoSvg} alt="Receipt Flow" />
+            <div className="logo-mark">
+              <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
               <span>Receipt Flow</span>
             </div>
             <p className="eyebrow">Receipt NFT</p>
             <h2>#{resolvedTokenId.toString()}</h2>
             <p className="label micro">NFT address</p>
             <p className="muted mono">{resolvedAddress}</p>
-            <div className="pill">Paid receipt</div>
-          </div>
-          <div className="receipt-actions">
-            <p className="label micro">Share & links</p>
-            <button type="button" onClick={copyLink} className="btn secondary wide">
-              {copied ? 'Copied' : 'Copy link'}
-            </button>
-            <a className="btn secondary wide" href={nftLink} target="_blank" rel="noreferrer">
-              Open NFT
-            </a>
-            {txLink && (
-              <a className="btn secondary wide" href={txLink} target="_blank" rel="noreferrer">
-                View transaction
-              </a>
-            )}
           </div>
         </div>
 
@@ -214,7 +201,7 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
 
         {data && !isLoading && !error && (
           <div className="receipt-body">
-            <div className="info-grid">
+            <div className="info-grid two-col">
               <div className="info-card">
                 <p className="label">Invoice</p>
                 <p className="value">#{data.invoiceId.toString()}</p>
@@ -226,19 +213,16 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
                 )}
               </div>
               <div className="info-card">
-                <p className="label">Payer</p>
-                <p className="value mono">{shortAddress(data.payer, 6)}</p>
-                <p className="muted mono">{data.payer}</p>
-              </div>
-            </div>
-
-            <div className="info-grid">
-              <div className="info-card">
                 <p className="label">Token</p>
                 <p className="value">
                   {data.tokenMeta.name ?? data.tokenMeta.symbol} ({data.tokenMeta.symbol})
                 </p>
                 <p className="muted mono">{data.token}</p>
+              </div>
+              <div className="info-card">
+                <p className="label">Payer</p>
+                <p className="value mono">{shortAddress(data.payer, 6)}</p>
+                <p className="muted mono">{data.payer}</p>
               </div>
               <div className="info-card">
                 <p className="label">Amount</p>
@@ -247,9 +231,6 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
                 </p>
                 <p className="muted mono">{data.amount.toString()} wei</p>
               </div>
-            </div>
-
-            <div className="info-grid">
               <div className="info-card">
                 <p className="label">Paid at</p>
                 <p className="value">{prettyDate(data.paidAt)}</p>
@@ -263,6 +244,21 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
                 </div>
               )}
             </div>
+            <div className="receipt-actions">
+            <p className="label micro">Share & links</p>
+            <button type="button" onClick={copyLink} className="btn secondary wide">
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+            <a className="btn secondary wide" href={nftLink} target="_blank" rel="noreferrer">
+              Open NFT
+            </a>
+            {txLink && (
+              <a className="btn secondary wide" href={txLink} target="_blank" rel="noreferrer">
+                View transaction
+              </a>
+            )}
+          </div>
+
           </div>
         )}
       </div>
@@ -291,7 +287,12 @@ function shortHash(value?: string, size = 6) {
 }
 
 async function fetchReceipt(
-  publicClient: any,
+  publicClient: {
+    readContract: typeof import('viem').readContract
+    getTransactionReceipt: (args: { hash: string }) => Promise<{
+      logs: { topics?: string[]; data: string; transactionHash?: string; address: Address }[]
+    }>
+  },
   initialAddress: Address,
   initialTokenId: bigint,
   txHash?: string
@@ -305,31 +306,49 @@ async function fetchReceipt(
       paidAt: bigint
       receiptAddress: Address
       resolvedToken: bigint
+      txHash?: string
     }
   | null
 > {
+  type ReceiptStruct = {
+    invoiceContract?: Address
+    invoiceId?: bigint
+    payer?: Address
+    token?: Address
+    amount?: bigint
+    paidAt?: bigint
+  } & {
+    0?: Address
+    1?: bigint
+    2?: Address
+    3?: Address
+    4?: bigint
+    5?: bigint
+  }
+
+  const pickField = <T,>(value: ReceiptStruct, key: keyof ReceiptStruct, index: number, fallback: T): T => {
+    const direct = value[key]
+    if (direct !== undefined) return direct as T
+    const tuple = value as unknown as Array<unknown>
+    if (Array.isArray(tuple) && tuple[index] !== undefined) return tuple[index] as T
+    return fallback
+  }
+
   const readOnce = async (address: Address, tokenId: bigint) => {
-    const r = (await publicClient!.readContract({
+    const r = (await publicClient.readContract({
       address,
       abi: receiptNftAbi,
       functionName: 'getReceipt',
       args: [tokenId]
-    })) as {
-      invoiceContract?: Address
-      invoiceId?: bigint
-      payer?: Address
-      token?: Address
-      amount?: bigint
-      paidAt?: bigint
-    }
+    })) as ReceiptStruct
 
     return {
-      invoiceContract: (r.invoiceContract ?? (r as any)[0]) as Address,
-      invoiceId: (r.invoiceId ?? (r as any)[1] ?? 0n) as bigint,
-      payer: (r.payer ?? (r as any)[2] ?? '0x0') as Address,
-      token: (r.token ?? (r as any)[3] ?? '0x0') as Address,
-      amount: (r.amount ?? (r as any)[4] ?? 0n) as bigint,
-      paidAt: (r.paidAt ?? (r as any)[5] ?? 0n) as bigint
+      invoiceContract: pickField<Address>(r, 'invoiceContract', 0, '0x0' as Address),
+      invoiceId: pickField<bigint>(r, 'invoiceId', 1, 0n),
+      payer: pickField<Address>(r, 'payer', 2, '0x0' as Address),
+      token: pickField<Address>(r, 'token', 3, '0x0' as Address),
+      amount: pickField<bigint>(r, 'amount', 4, 0n),
+      paidAt: pickField<bigint>(r, 'paidAt', 5, 0n)
     }
   }
 
@@ -363,11 +382,12 @@ async function fetchReceipt(
               data: log.data,
               topics: log.topics
             })
-            const decodedTokenId = (decoded.args as any)?.tokenId as bigint
+            const decodedArgs = decoded.args as { tokenId?: bigint }
+            const decodedTokenId = decodedArgs?.tokenId
             const newAddress = log.address as Address
             const tokenIdToUse = decodedTokenId ?? initialTokenId
             const base = await readOnce(newAddress, tokenIdToUse)
-            return { ...base, receiptAddress: newAddress, resolvedToken: tokenIdToUse }
+            return { ...base, receiptAddress: newAddress, resolvedToken: tokenIdToUse, txHash }
           } catch {
             // ignore decode errors, keep searching
           }

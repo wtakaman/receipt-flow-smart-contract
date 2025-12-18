@@ -11,6 +11,37 @@ type BalanceEntry = {
   symbol: string
 }
 
+const registeredEvent = {
+  type: 'event',
+  name: 'WithdrawRequestRegistered',
+  inputs: [
+    { name: '_id', type: 'uint256', indexed: false },
+    { name: '_amount', type: 'uint256', indexed: false },
+    { name: '_token', type: 'address', indexed: false },
+    { name: '_executed', type: 'bool', indexed: false }
+  ]
+} as const
+const approvedEvent = {
+  type: 'event',
+  name: 'WithdrawRequestApproved',
+  inputs: [
+    { name: '_id', type: 'uint256', indexed: false },
+    { name: '_approver', type: 'address', indexed: false },
+    { name: '_amount', type: 'uint256', indexed: false },
+    { name: '_token', type: 'address', indexed: false }
+  ]
+} as const
+const executedEvent = {
+  type: 'event',
+  name: 'WithdrawRequestExecuted',
+  inputs: [
+    { name: '_id', type: 'uint256', indexed: false },
+    { name: '_amount', type: 'uint256', indexed: false },
+    { name: '_token', type: 'address', indexed: false },
+    { name: '_executed', type: 'bool', indexed: false }
+  ]
+} as const
+
 export function useWithdrawals(contractAddress?: Address, supportedTokens?: Address[]) {
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient()
@@ -88,37 +119,6 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
     }
   }, [publicClient, contractAddress, supportedTokens, fetchTokenMeta])
 
-  const registeredEvent = {
-    type: 'event',
-    name: 'WithdrawRequestRegistered',
-    inputs: [
-      { name: '_id', type: 'uint256', indexed: false },
-      { name: '_amount', type: 'uint256', indexed: false },
-      { name: '_token', type: 'address', indexed: false },
-      { name: '_executed', type: 'bool', indexed: false }
-    ]
-  } as const
-  const approvedEvent = {
-    type: 'event',
-    name: 'WithdrawRequestApproved',
-    inputs: [
-      { name: '_id', type: 'uint256', indexed: false },
-      { name: '_approver', type: 'address', indexed: false },
-      { name: '_amount', type: 'uint256', indexed: false },
-      { name: '_token', type: 'address', indexed: false }
-    ]
-  } as const
-  const executedEvent = {
-    type: 'event',
-    name: 'WithdrawRequestExecuted',
-    inputs: [
-      { name: '_id', type: 'uint256', indexed: false },
-      { name: '_amount', type: 'uint256', indexed: false },
-      { name: '_token', type: 'address', indexed: false },
-      { name: '_executed', type: 'bool', indexed: false }
-    ]
-  } as const
-
   useEffect(() => {
     if (!publicClient || !contractAddress) return
     let ignore = false
@@ -133,22 +133,19 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
         const [registered, approved, executed] = await Promise.all([
           publicClient.getLogs({
             address: contractAddress,
-            abi: invoiceFlowAbi,
-            eventName: 'WithdrawRequestRegistered',
+            event: registeredEvent,
             fromBlock,
             toBlock: latest
           }),
           publicClient.getLogs({
             address: contractAddress,
-            abi: invoiceFlowAbi,
-            eventName: 'WithdrawRequestApproved',
+            event: approvedEvent,
             fromBlock,
             toBlock: latest
           }),
           publicClient.getLogs({
             address: contractAddress,
-            abi: invoiceFlowAbi,
-            eventName: 'WithdrawRequestExecuted',
+            event: executedEvent,
             fromBlock,
             toBlock: latest
           })
@@ -190,14 +187,14 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
         
         approved.forEach((log) => {
           try {
-            const decoded = decodeEventLog({
+          const decoded = decodeEventLog({
               abi: [approvedEvent],
               data: log.data,
               topics: log.topics
             })
-            const args = decoded.args as Record<string, unknown>
-            const id = (args._id as bigint)?.toString() ?? '0'
-            const approver = (args._approver as Address) ?? zeroAddress
+          const args = decoded.args as { _id?: bigint; _approver?: Address }
+          const id = (args._id ?? 0n).toString()
+          const approver = args._approver ?? zeroAddress
             if (!map[id]) return
             if (!map[id].confirmations.some((addr) => addr.toLowerCase() === approver.toLowerCase())) {
               map[id].confirmations = [...map[id].confirmations, approver]
@@ -208,14 +205,14 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
         })
         executed.forEach((log) => {
           try {
-            const decoded = decodeEventLog({
+          const decoded = decodeEventLog({
               abi: [executedEvent],
               data: log.data,
               topics: log.topics
             })
-            const args = decoded.args as Record<string, unknown>
-            const id = (args._id as bigint)?.toString() ?? '0'
-            const isExecuted = Boolean(args._executed ?? true)
+          const args = decoded.args as { _id?: bigint; _executed?: boolean }
+          const id = (args._id ?? 0n).toString()
+          const isExecuted = Boolean(args._executed ?? true)
             if (map[id]) map[id].executed = isExecuted
           } catch {
             // skip
@@ -253,7 +250,8 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
             data: log.data,
             topics: log.topics
           })
-          const token = (decoded.args as any)?._token as Address
+          const args = decoded.args as { _token?: Address }
+          const token = args?._token
           if (token) fetchTokenMeta(token)
         } catch {
           // ignore non-matching logs
@@ -269,10 +267,10 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
               data: log.data,
               topics: log.topics
             })
-            const args = decoded.args as Record<string, unknown>
-            const id = (args._id as bigint) ?? 0n
-            const amountRaw = (args._amount as bigint) ?? 0n
-            const token = (args._token as Address) ?? zeroAddress
+            const args = decoded.args as { _id?: bigint; _amount?: bigint; _token?: Address; _executed?: boolean }
+            const id = args._id ?? 0n
+            const amountRaw = args._amount ?? 0n
+            const token = args._token ?? zeroAddress
             const isExecuted = Boolean(args._executed)
             
             next[id.toString()] = {

@@ -200,9 +200,9 @@ export function InvoicePage({
     <section className="panel">
       <header className="hero">
         <div className="hero-top">
-          <div className="hero-brand">
-            <img src={logoSvg} alt="Receipt Flow" className="hero-logo" />
-            <p className="eyebrow">Receipt Flow Console</p>
+          <div className="logo-mark">
+            <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
+            <span>Receipt Flow</span>
           </div>
           <div className="hero-actions">{walletButton}</div>
         </div>

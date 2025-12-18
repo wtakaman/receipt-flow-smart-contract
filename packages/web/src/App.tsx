@@ -6,7 +6,6 @@ import { useAccount, useConnect, useDisconnect, usePublicClient } from 'wagmi'
 import { InvoicesPanel } from './components/panels/InvoicesPanel'
 import { WithdrawalsPanel } from './components/panels/WithdrawalsPanel'
 import { GovernancePanel } from './components/panels/GovernancePanel'
-import { PaidInvoicesPanel } from './components/panels/PaidInvoicesPanel'
 import { RoleSelector } from './components/RoleSelector'
 import { MerchantDashboard } from './components/merchant/MerchantDashboard'
 import { PayerDashboard } from './components/payer/PayerDashboard'
@@ -135,16 +134,8 @@ function MainApp({ route }: { route: Route }) {
     return summary.owners.some((owner) => owner && owner.toLowerCase() === (address as Address)?.toLowerCase())
   }, [address, summary.owners])
 
-  const isCustomer = useMemo(() => {
-    if (!address) return false
-    return invoicesState.invoices.some(
-      (invoice) => invoice.customer && invoice.customer.toLowerCase() === (address as Address)?.toLowerCase()
-    )
-  }, [address, invoicesState.invoices])
-
   useEffect(() => {
     if (!selectedContract && summary.contractAddress) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedContract(summary.contractAddress)
     }
   }, [selectedContract, summary.contractAddress])
@@ -207,7 +198,6 @@ function MainApp({ route }: { route: Route }) {
 
   useEffect(() => {
     if (!isConnected) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRole('payer')
       setSelectedContract(undefined)
       setOwnedContracts([])
@@ -232,9 +222,9 @@ function MainApp({ route }: { route: Route }) {
       {route.type === 'app' && (
         <header className="hero">
           <div className="hero-top">
-            <div className="hero-brand">
-              <img src={logoSvg} alt="Receipt Flow" className="hero-logo" />
-              <p className="eyebrow">Receipt Flow Console</p>
+            <div className="logo-mark">
+              <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
+              <span>Receipt Flow</span>
             </div>
             <div className="hero-actions">{walletButton}</div>
           </div>
@@ -260,7 +250,6 @@ function MainApp({ route }: { route: Route }) {
         <ContractPage
           contractAddress={route.contractAddress}
           address={address as Address | undefined}
-          isConnected={isConnected}
           walletButton={walletButton}
         />
       ) : role === 'merchant' ? (

@@ -190,6 +190,18 @@
   height: 60px;
 }
 
+.hero .logo-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 8px;
+}
+
+.hero .logo-icon {
+  width: 60px;
+  height: 60px;
+}
+
 .hero-top {
   display: flex;
   justify-content: space-between;
@@ -1692,7 +1704,8 @@ label .hint {
 }
 
 .hero-metrics {
-  margin-top: 18px;
+  margin-top: 80px;
+  align-self: flex-end;
 }
 
 .mini-metrics .label {
@@ -2291,6 +2304,10 @@ label .hint {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
+}
+
+.info-grid.two-col {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .info-card {

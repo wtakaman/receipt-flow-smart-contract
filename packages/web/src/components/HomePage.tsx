@@ -123,8 +123,8 @@ export function HomePage({ onLaunchApp }: Props) {
     <div className="home">
       <header className="home-header">
         <div className="logo-mark">
-          <img src={logoSvg} alt="Receipt Flow" className="logo-icon" />
-          <span>Receipt Flow</span>
+          <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
+          <span>Receipt Flow Console</span>
         </div>
         <nav>
           <a href="#process">How it works</a>
@@ -150,11 +150,6 @@ export function HomePage({ onLaunchApp }: Props) {
           <p className="lead">
             Deploy invoice contracts, guide customers through payment, mint Receipt NFTs as proof, and govern funds with multi-owner controls.
           </p>
-          <ul className="pill-row">
-            <li>Multi-owner withdraw approvals</li>
-            <li>ETH + ERC-20</li>
-            <li>Receipt NFTs</li>
-          </ul>
           <div className="mini-metrics hero-metrics">
             <div>
               <p className="label">Owners</p>
@@ -212,7 +207,7 @@ export function HomePage({ onLaunchApp }: Props) {
           <p className="section-lead">Three clear steps: deploy, share, and get paid with on-chain receipts.</p>
         </div>
         <div className="process-grid">
-          {steps.map((step, idx) => (
+          {steps.map((step) => (
             <article key={step.title} className="process-card">
               <div className="process-head">
                 <span className="badge">{step.badge}</span>
