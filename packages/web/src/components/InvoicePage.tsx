@@ -47,6 +47,22 @@ export function InvoicePage({
   const [isPaymentSubmitted, setIsPaymentSubmitted] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setInvoice(null)
+      setIsPaid(false)
+      setStatus('Connect wallet to view this invoice.')
+      setIsLoading(false)
+    }
+  }, [isConnected, address])
+
+  useEffect(() => {
+    if (isConnected && address) {
+      setStatus(null)
+      setRefreshKey((k) => k + 1)
+    }
+  }, [isConnected, address])
+
   const isExpired = useMemo(() => {
     if (!invoice) return false
     if (!invoice.expiration || invoice.expiration === 0n) return false
@@ -56,7 +72,15 @@ export function InvoicePage({
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      if (!publicClient) return
+      if (!publicClient || !isConnected || !address) {
+        if (!cancelled) {
+          setInvoice(null)
+          setIsPaid(false)
+          setStatus('Connect wallet to view this invoice.')
+          setIsLoading(false)
+        }
+        return
+      }
       setIsLoading(true)
       try {
         const result = (await publicClient.readContract({
@@ -136,7 +160,7 @@ export function InvoicePage({
     return () => {
       cancelled = true
     }
-  }, [publicClient, contractAddress, invoiceId, refreshKey, isPaymentSubmitted])
+  }, [publicClient, contractAddress, invoiceId, refreshKey, isPaymentSubmitted, isConnected, address])
 
   const pay = async () => {
     if (!invoice) return
@@ -194,6 +218,29 @@ export function InvoicePage({
     } finally {
       setIsPaying(false)
     }
+  }
+
+  if (!isConnected) {
+    return (
+      <section className="panel">
+        <header className="hero">
+          <div className="hero-top">
+            <div className="logo-mark">
+              <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
+              <span>Receipt Flow</span>
+            </div>
+            <div className="hero-actions">{walletButton}</div>
+          </div>
+          <h1>Invoice payment</h1>
+          <p className="lead">Review the invoice details and pay with the correct customer wallet.</p>
+        </header>
+
+        <div className="card">
+          <h3>Connect to view this invoice</h3>
+          <p className="muted">Please connect your wallet to load the invoice details.</p>
+        </div>
+      </section>
+    )
   }
 
   return (

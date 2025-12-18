@@ -48,6 +48,13 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
   const [rows, setRows] = useState<Record<string, WithdrawRow>>({})
   const [balances, setBalances] = useState<Record<string, BalanceEntry>>({})
 
+  // Normalize supportedTokens so hooks don't churn on new array identities
+  const tokensKey = useMemo(() => {
+    if (!supportedTokens || supportedTokens.length === 0) return ''
+    return supportedTokens.map((t) => t.toLowerCase()).sort().join(',')
+  }, [supportedTokens])
+  const normalizedTokens = useMemo(() => (supportedTokens && supportedTokens.length ? [...supportedTokens] : []), [tokensKey])
+
   // Fetch and cache token metadata from chain
   const fetchTokenMeta = useCallback(async (token: Address) => {
     if (!publicClient || token === zeroAddress) return
@@ -75,16 +82,16 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
 
   const fetchBalances = useCallback(async () => {
     if (!publicClient || !contractAddress) return
-    if (!supportedTokens || supportedTokens.length === 0) {
+    if (!normalizedTokens.length) {
       setBalances({})
       return
     }
     try {
       // First fetch any missing token metadata
-      await Promise.all(supportedTokens.map(fetchTokenMeta))
+      await Promise.all(normalizedTokens.map(fetchTokenMeta))
       
       const entries = await Promise.all(
-        supportedTokens.map(async (token) => {
+        normalizedTokens.map(async (token) => {
           const meta = getTokenMeta(token)
           let raw = 0n
           if (token === zeroAddress) {
@@ -117,7 +124,7 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
     } catch (err) {
       console.warn('Unable to fetch balances for withdraw view', err)
     }
-  }, [publicClient, contractAddress, supportedTokens, fetchTokenMeta])
+  }, [publicClient, contractAddress, normalizedTokens, fetchTokenMeta])
 
   useEffect(() => {
     if (!publicClient || !contractAddress) return
@@ -239,8 +246,7 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
     abi: [registeredEvent],
     eventName: 'WithdrawRequestRegistered',
     enabled: Boolean(contractAddress),
-    poll: true,
-    pollingInterval: 120000,
+    poll: false,
     onLogs(logs) {
       // Fetch metadata for any new tokens
       logs.forEach((log) => {
@@ -294,8 +300,7 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
     abi: [approvedEvent],
     eventName: 'WithdrawRequestApproved',
     enabled: Boolean(contractAddress),
-    poll: true,
-    pollingInterval: 120000,
+    poll: false,
     onLogs(logs) {
       setRows((prev) => {
         const next = { ...prev }
@@ -327,8 +332,7 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
     abi: [executedEvent],
     eventName: 'WithdrawRequestExecuted',
     enabled: Boolean(contractAddress),
-    poll: true,
-    pollingInterval: 120000,
+    poll: false,
     onLogs(logs) {
       setRows((prev) => {
         const next = { ...prev }

@@ -224,17 +224,16 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
               )}
             </div>
             <div className="receipt-actions">
-            <p className="label micro">Links</p>
-            <a className="btn secondary wide" href={nftLink} target="_blank" rel="noreferrer">
-              Open NFT
-            </a>
-            {txLink && (
-              <a className="btn secondary wide" href={txLink} target="_blank" rel="noreferrer">
-                View transaction
+              <p className="label micro">Links</p>
+              <a className="btn secondary wide" href={nftLink} target="_blank" rel="noreferrer">
+                Open NFT
               </a>
-            )}
-          </div>
-
+              {txLink && (
+                <a className="btn secondary wide" href={txLink} target="_blank" rel="noreferrer">
+                  View transaction
+                </a>
+              )}
+            </div>
           </div>
         )}
       </div>
