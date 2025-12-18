@@ -9,12 +9,27 @@ const sepoliaRpc = import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sep
 const mumbaiRpc = import.meta.env.VITE_MUMBAI_RPC_URL
 const hardhatRpc = import.meta.env.VITE_HARDHAT_RPC_URL
 
+// HTTP transport options to prevent RPC spam
+const httpOptions = {
+  retryCount: 0, // Disable retries to prevent avalanche on rate-limit
+  timeout: 30000,
+  batch: {
+    batchSize: 100, // Batch up to 100 requests
+    wait: 50 // Wait 50ms to collect requests before sending batch
+  }
+}
+
 export const wagmiConfig = createConfig({
   chains: [sepolia, polygonMumbai, hardhat],
+  pollingInterval: 120000, // 2 minutes - reduce load on public RPCs
+  syncConnectedChain: false, // Prevent extra chain sync requests
+  batch: {
+    multicall: true // Enable multicall batching
+  },
   transports: {
-    [sepolia.id]: http(sepoliaRpc),
-    [polygonMumbai.id]: http(mumbaiRpc),
-    [hardhat.id]: http(hardhatRpc ?? 'http://127.0.0.1:8545')
+    [sepolia.id]: http(sepoliaRpc, httpOptions),
+    [polygonMumbai.id]: http(mumbaiRpc, httpOptions),
+    [hardhat.id]: http(hardhatRpc ?? 'http://127.0.0.1:8545', { ...httpOptions, batch: false })
   },
   connectors: [
     injected({ shimDisconnect: true }),

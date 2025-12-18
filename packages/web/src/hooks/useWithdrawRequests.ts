@@ -92,6 +92,8 @@ export function useWithdrawRequests(contractAddress?: Address) {
     abi: invoiceFlowAbi,
     eventName: 'WithdrawRequestRegistered',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs(logs) {
       setRequests((prev) => {
         const map = new Map(prev.map((row) => [row.id.toString(), row]))
@@ -115,6 +117,8 @@ export function useWithdrawRequests(contractAddress?: Address) {
     abi: invoiceFlowAbi,
     eventName: 'WithdrawRequestApproved',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs(logs) {
       setRequests((prev) =>
         prev.map((row) => {
@@ -133,6 +137,8 @@ export function useWithdrawRequests(contractAddress?: Address) {
     abi: invoiceFlowAbi,
     eventName: 'WithdrawRequestExecuted',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs(logs) {
       setRequests((prev) =>
         prev.map((row) => {

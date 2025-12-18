@@ -89,6 +89,8 @@ export function useInvoices(contractAddress?: Address) {
     abi: invoiceFlowAbi,
     eventName: 'InvoiceRegistered',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs() {
       refetchInvoiceIds()
       refetchInvoices()
@@ -100,6 +102,8 @@ export function useInvoices(contractAddress?: Address) {
     abi: invoiceFlowAbi,
     eventName: 'InvoiceRemoved',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs() {
       refetchInvoiceIds()
       refetchInvoices()
@@ -111,6 +115,8 @@ export function useInvoices(contractAddress?: Address) {
     abi: invoiceFlowAbi,
     eventName: 'InvoicePaid',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs(logs) {
       refetchInvoiceIds()
       refetchInvoices()

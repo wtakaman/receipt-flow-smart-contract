@@ -40,7 +40,9 @@ export function WithdrawalsPanel({
   return (
     <section className="panel">
       <h2>Withdraw queue</h2>
-      <div className="grid split">
+      <p className="section-lead">Register payouts, track confirmations, and execute once approved.</p>
+      
+      <div className="grid two-col">
         <article className="card">
           <h3>New request</h3>
           <form className="form" onSubmit={handleSubmit}>
@@ -91,68 +93,70 @@ export function WithdrawalsPanel({
             </ul>
           )}
         </article>
-        <article className="card table-card">
-          <div className="table-header">
-            <h3>Requests</h3>
-          </div>
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Token</th>
-                  <th>Amount</th>
-                  <th>Confirmations</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {withdrawRows.length === 0 && (
-                  <tr>
-                    <td colSpan={6}>No withdraw requests yet.</td>
-                  </tr>
-                )}
-                {withdrawRows.map((row) => {
-                  const meta = getTokenMeta(row.token)
-                  const formatted = formatUnits(row.amountRaw, meta.decimals)
-                  return (
-                    <tr key={row.id.toString()}>
-                      <td>#{row.id.toString()}</td>
-                      <td>{meta.symbol}</td>
-                      <td>
-                        {Number(formatted).toLocaleString(undefined, { maximumFractionDigits: 4 })} {meta.symbol}
-                      </td>
-                      <td>
-                        {row.confirmations.length}/{requiredApprovals}
-                      </td>
-                      <td>
-                        <span className={`pill ${row.executed ? 'success' : 'warning'}`}>
-                          {row.executed ? 'Executed' : 'Pending'}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="row-actions">
-                          {!row.executed && (
-                            <>
-                              <button type="button" disabled={!isOwner} onClick={() => approveWithdraw(row.id)}>
-                                Approve
-                              </button>
-                              <button type="button" disabled={!isOwner || row.confirmations.length < requiredApprovals} onClick={() => executeWithdraw(row.id)}>
-                                Execute
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </article>
       </div>
+
+      <article className="card table-card" style={{ marginTop: '1.5rem' }}>
+        <div className="table-header">
+          <h3>Withdraw requests</h3>
+          <span className="hint">{withdrawRows.length} request{withdrawRows.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Token</th>
+                <th>Amount</th>
+                <th>Confirmations</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {withdrawRows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="empty-row">No withdraw requests yet.</td>
+                </tr>
+              )}
+              {withdrawRows.map((row) => {
+                const meta = getTokenMeta(row.token)
+                const formatted = formatUnits(row.amountRaw, meta.decimals)
+                return (
+                  <tr key={row.id.toString()}>
+                    <td>#{row.id.toString()}</td>
+                    <td>{meta.symbol}</td>
+                    <td>
+                      {Number(formatted).toLocaleString(undefined, { maximumFractionDigits: 4 })} {meta.symbol}
+                    </td>
+                    <td>
+                      {row.confirmations.length}/{requiredApprovals}
+                    </td>
+                    <td>
+                      <span className={`pill ${row.executed ? 'success' : 'warning'}`}>
+                        {row.executed ? 'Executed' : 'Pending'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        {!row.executed && (
+                          <>
+                            <button type="button" disabled={!isOwner} onClick={() => approveWithdraw(row.id)}>
+                              Approve
+                            </button>
+                            <button type="button" disabled={!isOwner || row.confirmations.length < requiredApprovals} onClick={() => executeWithdraw(row.id)}>
+                              Execute
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </article>
     </section>
   )
 }

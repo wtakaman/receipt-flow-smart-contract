@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Address, Connector } from 'viem'
+import type { Address } from 'viem'
 import { useChainId } from 'wagmi'
-import { ConnectPanel } from './ConnectPanel'
 import { InvoicesPanel } from './panels/InvoicesPanel'
 import { PaidInvoicesPanel } from './panels/PaidInvoicesPanel'
 import { WithdrawalsPanel } from './panels/WithdrawalsPanel'
@@ -11,6 +10,8 @@ import { useInvoices } from '../hooks/useInvoices'
 import { usePaidInvoices } from '../hooks/usePaidInvoices'
 import { useWithdrawals } from '../hooks/useWithdrawals'
 import { useGovernance } from '../hooks/useGovernance'
+import logoSvg from '../assets/logo.svg'
+import type { ReactNode } from 'react'
 
 type Tab = 'Invoices' | 'Paid' | 'Withdrawals' | 'Governance'
 
@@ -18,24 +19,14 @@ type Props = {
   contractAddress: Address
   address?: Address
   isConnected: boolean
-  connectors: readonly Connector[]
-  connect: (args: { connector: Connector }) => void
-  disconnect: () => void
-  connectError: Error | null
-  connectPending: boolean
-  pendingConnector: Connector | undefined
+  walletButton?: ReactNode
 }
 
 export function ContractPage({
   contractAddress,
   address,
   isConnected,
-  connectors,
-  connect,
-  disconnect,
-  connectError,
-  connectPending,
-  pendingConnector
+  walletButton
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('Invoices')
   const chainId = useChainId()
@@ -52,26 +43,24 @@ export function ContractPage({
 
   return (
     <div className="app">
-      <section className="panel">
-        <h2>Contract management</h2>
+      <header className="hero">
+        <div className="hero-top">
+          <div className="hero-brand">
+            <img src={logoSvg} alt="Receipt Flow" className="hero-logo" />
+            <p className="eyebrow">Receipt Flow Console</p>
+          </div>
+          <div className="hero-actions">{walletButton}</div>
+        </div>
+        <h1>Contract management</h1>
         <p className="lead">Manage invoices, withdrawals, and governance for this contract.</p>
+      </header>
+
+      <section className="panel">
         <div className="row-actions" style={{ marginTop: '0.5rem' }}>
           <a className="link-button" href="#/">
             ← Back to home
           </a>
         </div>
-        <ConnectPanel
-          isConnected={isConnected}
-          address={address}
-          isOwner={isOwner}
-          isCustomer={false}
-          connectors={connectors}
-          connect={connect}
-          disconnect={disconnect}
-          connectError={connectError}
-          connectPending={connectPending}
-          pendingConnector={pendingConnector}
-        />
       </section>
 
       <section className="panel">

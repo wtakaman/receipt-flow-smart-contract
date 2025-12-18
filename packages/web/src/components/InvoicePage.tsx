@@ -1,20 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Address, Connector } from 'viem'
+import type { Address } from 'viem'
 import { erc20Abi } from 'viem'
 import { usePublicClient, useWriteContract } from 'wagmi'
-import { invoiceFlowAbi, getTokenMeta } from '../config/contracts'
+import { invoiceFlowAbi, getTokenMeta, addTokenMeta } from '../config/contracts'
+import logoSvg from '../assets/logo.svg'
+import type { ReactNode } from 'react'
 
 type Props = {
   contractAddress: Address
   invoiceId: bigint
   address?: Address
   isConnected: boolean
-  connectors: readonly Connector[]
-  connect: (args: { connector: Connector }) => void
-  disconnect: () => void
-  connectError: Error | null
-  connectPending: boolean
-  pendingConnector: Connector | undefined
+  walletButton?: ReactNode
 }
 
 type InvoiceData = {
@@ -36,10 +33,7 @@ export function InvoicePage({
   invoiceId,
   address,
   isConnected,
-  connectors,
-  connect,
-  disconnect,
-  connectError
+  walletButton
 }: Props) {
   // Note: connectPending and pendingConnector available in Props but not used here
   const publicClient = usePublicClient()
@@ -90,8 +84,8 @@ export function InvoicePage({
         const token = pickAddress(tokenRaw) ?? (tokenRaw?.toString?.() as Address)
         let meta = getTokenMeta(token)
         const needsOnchain =
-          (!meta.name || meta.name.trim() === '') ||
-          (!meta.symbol || meta.symbol === 'TOKEN' || meta.symbol.trim() === '')
+          (!meta.name || meta.name.trim() === '' || meta.name === 'Unknown Token') ||
+          (!meta.symbol || meta.symbol === 'TOKEN' || meta.symbol === '???' || meta.symbol.trim() === '')
         if (needsOnchain && token && token !== '0x0000000000000000000000000000000000000000') {
           try {
             const [onName, onSymbol, onDecimals] = await Promise.all([
@@ -104,6 +98,10 @@ export function InvoicePage({
               symbol: (onSymbol as string | undefined) ?? meta.symbol ?? 'TOKEN',
               decimals: Number(onDecimals ?? meta.decimals ?? 18),
               isNative: meta.isNative
+            }
+            // Cache the fetched metadata for other components
+            if (meta.symbol && meta.symbol !== '???' && meta.symbol !== 'TOKEN') {
+              addTokenMeta(token, meta)
             }
           } catch {
             // ignore
@@ -200,45 +198,29 @@ export function InvoicePage({
 
   return (
     <section className="panel">
-      <div className="card">
-        <h2>Invoice payment</h2>
-        <p className="lead">
-          Review the invoice details and pay with the correct customer wallet.
-        </p>
-        <ol className="steps">
-          <li>Connect the payer wallet.</li>
-          <li>Confirm the connected wallet matches the invoice customer.</li>
-          <li>If the token is ERC-20, approve the exact amount.</li>
-          <li>Click Pay to submit the transaction.</li>
-        </ol>
-        <div className="row-actions" style={{ marginTop: '0.5rem' }}>
-          {isConnected ? (
-            <>
-              <span className="mono">Connected: {address}</span>
-              <button type="button" onClick={disconnect}>
-                Disconnect
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                const first = connectors?.[0]
-                if (first) {
-                  connect({ connector: first })
-                }
-              }}
-            >
-              Connect wallet
-            </button>
-          )}
-          {connectError && <span className="banner info">{connectError.message}</span>}
+      <header className="hero">
+        <div className="hero-top">
+          <div className="hero-brand">
+            <img src={logoSvg} alt="Receipt Flow" className="hero-logo" />
+            <p className="eyebrow">Receipt Flow Console</p>
+          </div>
+          <div className="hero-actions">{walletButton}</div>
         </div>
-      </div>
+        <h1>Invoice payment</h1>
+        <p className="lead">Review the invoice details and pay with the correct customer wallet.</p>
+      </header>
 
       <div className="card">
         <div className="table-header">
-          <h3>Invoice #{invoiceId.toString()}</h3>
+          <div>
+            <h3>Payment steps</h3>
+            <ol className="steps">
+              <li>Connect the payer wallet.</li>
+              <li>Confirm the connected wallet matches the invoice customer.</li>
+              <li>If the token is ERC-20, approve the exact amount.</li>
+              <li>Click Pay to submit the transaction.</li>
+            </ol>
+          </div>
         </div>
 
         {isLoading && <p>Loading invoice…</p>}
@@ -252,11 +234,12 @@ export function InvoicePage({
 
         {invoice && (
           <div className="invoice-bill">
-            <header className="bill-header">
-              <div>
-                <p className="label">Invoice</p>
-                <h3>#{invoiceId.toString()}</h3>
-                <p className="muted">Contract: {contractAddress}</p>
+            <header className="bill-header invoice-hero">
+              <div className="receipt-meta">
+                <p className="eyebrow">Invoice</p>
+                <h2>#{invoiceId.toString()}</h2>
+                <p className="label micro">Contract</p>
+                <p className="muted mono">{contractAddress}</p>
               </div>
               <div className="bill-status">
                 <span className={`status-pill ${isPaid ? 'success' : isExpired ? 'warning' : 'info'}`}>
@@ -315,6 +298,7 @@ export function InvoicePage({
                       !address ||
                       safeLower(invoice.customer) !== safeLower(address)
                     }
+                  className="btn primary"
                   >
                     {isExpired ? 'Expired' : isPaying ? 'Submitting…' : isPaymentSubmitted ? 'Submitted…' : 'Pay invoice'}
                   </button>

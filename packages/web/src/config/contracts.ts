@@ -12,6 +12,27 @@ type TokenMeta = {
 
 export const invoiceFlowAbi = invoiceFlowArtifact.abi as Abi
 export const invoiceFactoryAbi = invoiceFlowFactoryArtifact.abi as Abi
+export const receiptNftAbi = [
+  {
+    name: 'getReceipt',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [
+      {
+        type: 'tuple',
+        components: [
+          { name: 'invoiceContract', type: 'address' },
+          { name: 'invoiceId', type: 'uint256' },
+          { name: 'payer', type: 'address' },
+          { name: 'token', type: 'address' },
+          { name: 'amount', type: 'uint256' },
+          { name: 'paidAt', type: 'uint256' }
+        ]
+      }
+    ]
+  }
+] as const
 
 const env = import.meta.env
 
@@ -33,7 +54,20 @@ export const tokenMetadata: Record<string, TokenMeta> = {
     name: env.VITE_SAMPLE_ERC20_NAME ?? 'Sample Token',
     symbol: env.VITE_SAMPLE_ERC20_SYMBOL ?? 'TTK',
     decimals: Number(env.VITE_SAMPLE_ERC20_DECIMALS ?? 18)
+  },
+  // TakaCoin (TKC) - add your deployed address here or via env
+  [env.VITE_TAKACOIN_ADDRESS?.toLowerCase() ?? '']: {
+    name: 'TakaCoin',
+    symbol: 'TKC',
+    decimals: 18
   }
+}
+
+// Cache for dynamically fetched token metadata
+const dynamicTokenCache: Record<string, TokenMeta> = {}
+
+export function addTokenMeta(address: Address | string, meta: TokenMeta) {
+  dynamicTokenCache[address.toLowerCase()] = meta
 }
 
 const addressBook: Partial<Record<number, Address>> = {
@@ -89,11 +123,19 @@ export function getExtraContracts(chainId?: number): Address[] {
 }
 
 export function getTokenMeta(address: Address | string | undefined): TokenMeta {
-  if (!address) return { name: 'Token', symbol: 'TOKEN', decimals: 18 }
-  const meta = tokenMetadata[address.toLowerCase()] ?? { name: 'Token', symbol: 'TOKEN', decimals: 18 }
-  if (!meta.symbol || meta.symbol.trim() === '') {
-    return { ...meta, symbol: 'TOKEN' }
+  if (!address) return { name: 'Ether', symbol: 'ETH', decimals: 18, isNative: true }
+  const key = address.toLowerCase()
+  // Check static metadata first
+  const staticMeta = tokenMetadata[key]
+  if (staticMeta && staticMeta.symbol && staticMeta.symbol.trim() !== '') {
+    return staticMeta
   }
-  return meta
+  // Check dynamic cache
+  const dynamicMeta = dynamicTokenCache[key]
+  if (dynamicMeta && dynamicMeta.symbol && dynamicMeta.symbol.trim() !== '') {
+    return dynamicMeta
+  }
+  // Fallback for unknown tokens
+  return { name: 'Unknown Token', symbol: '???', decimals: 18 }
 }
 

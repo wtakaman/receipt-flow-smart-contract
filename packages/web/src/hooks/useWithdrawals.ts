@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePublicClient, useWatchContractEvent, useWriteContract } from 'wagmi'
 import type { Address } from 'viem'
-import { erc20Abi, formatUnits, parseUnits, zeroAddress } from 'viem'
-import { getTokenMeta, invoiceFlowAbi } from '../config/contracts'
+import { decodeEventLog, erc20Abi, formatUnits, parseUnits, zeroAddress } from 'viem'
+import { addTokenMeta, getTokenMeta, invoiceFlowAbi } from '../config/contracts'
 import type { WithdrawRow } from '../types/invoice'
 
 type BalanceEntry = {
@@ -17,6 +17,31 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
   const [rows, setRows] = useState<Record<string, WithdrawRow>>({})
   const [balances, setBalances] = useState<Record<string, BalanceEntry>>({})
 
+  // Fetch and cache token metadata from chain
+  const fetchTokenMeta = useCallback(async (token: Address) => {
+    if (!publicClient || token === zeroAddress) return
+    const existingMeta = getTokenMeta(token)
+    if (existingMeta.symbol !== '???') return // Already have metadata
+    
+    try {
+      const [symbol, decimals] = await Promise.all([
+        publicClient.readContract({
+          address: token,
+          abi: erc20Abi,
+          functionName: 'symbol'
+        }) as Promise<string>,
+        publicClient.readContract({
+          address: token,
+          abi: erc20Abi,
+          functionName: 'decimals'
+        }) as Promise<number>
+      ])
+      addTokenMeta(token, { symbol, decimals, name: symbol })
+    } catch (err) {
+      console.warn('Unable to fetch token metadata for', token, err)
+    }
+  }, [publicClient])
+
   const fetchBalances = useCallback(async () => {
     if (!publicClient || !contractAddress) return
     if (!supportedTokens || supportedTokens.length === 0) {
@@ -24,6 +49,9 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
       return
     }
     try {
+      // First fetch any missing token metadata
+      await Promise.all(supportedTokens.map(fetchTokenMeta))
+      
       const entries = await Promise.all(
         supportedTokens.map(async (token) => {
           const meta = getTokenMeta(token)
@@ -58,7 +86,38 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
     } catch (err) {
       console.warn('Unable to fetch balances for withdraw view', err)
     }
-  }, [publicClient, contractAddress, supportedTokens])
+  }, [publicClient, contractAddress, supportedTokens, fetchTokenMeta])
+
+  const registeredEvent = {
+    type: 'event',
+    name: 'WithdrawRequestRegistered',
+    inputs: [
+      { name: '_id', type: 'uint256', indexed: false },
+      { name: '_amount', type: 'uint256', indexed: false },
+      { name: '_token', type: 'address', indexed: false },
+      { name: '_executed', type: 'bool', indexed: false }
+    ]
+  } as const
+  const approvedEvent = {
+    type: 'event',
+    name: 'WithdrawRequestApproved',
+    inputs: [
+      { name: '_id', type: 'uint256', indexed: false },
+      { name: '_approver', type: 'address', indexed: false },
+      { name: '_amount', type: 'uint256', indexed: false },
+      { name: '_token', type: 'address', indexed: false }
+    ]
+  } as const
+  const executedEvent = {
+    type: 'event',
+    name: 'WithdrawRequestExecuted',
+    inputs: [
+      { name: '_id', type: 'uint256', indexed: false },
+      { name: '_amount', type: 'uint256', indexed: false },
+      { name: '_token', type: 'address', indexed: false },
+      { name: '_executed', type: 'bool', indexed: false }
+    ]
+  } as const
 
   useEffect(() => {
     if (!publicClient || !contractAddress) return
@@ -66,7 +125,10 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
     ;(async () => {
       try {
         const latest = await publicClient.getBlockNumber()
-        const fromBlock = latest > 9n ? latest - 9n : 0n
+        // Use a reasonable block range that most RPCs accept (around 2000 blocks)
+        const fromBlock = latest > 2000n ? latest - 2000n : 0n
+        
+        console.log('[Withdrawals] Fetching logs from block', fromBlock.toString(), 'to', latest.toString())
 
         const [registered, approved, executed] = await Promise.all([
           publicClient.getLogs({
@@ -91,41 +153,85 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
             toBlock: latest
           })
         ])
+        
+        console.log('[Withdrawals] Found', registered.length, 'registered,', approved.length, 'approved,', executed.length, 'executed')
 
-      if (ignore) return
-      const map: Record<string, WithdrawRow> = {}
+        if (ignore) return
+        const map: Record<string, WithdrawRow> = {}
+        const tokensToFetch = new Set<Address>()
+        
         registered.forEach((log) => {
-          const id = (log.args?._id ?? 0n) as bigint
-          map[id.toString()] = {
-            id,
-            token: (log.args?._token as Address) ?? zeroAddress,
-            amountRaw: (log.args?._amount as bigint) ?? 0n,
-            confirmations: [],
-            executed: Boolean(log.args?._executed)
+          try {
+            const decoded = decodeEventLog({
+              abi: [registeredEvent],
+              data: log.data,
+              topics: log.topics
+            })
+            const args = decoded.args as Record<string, unknown>
+            const id = (args._id as bigint) ?? 0n
+            const amountRaw = (args._amount as bigint) ?? 0n
+            const token = (args._token as Address) ?? zeroAddress
+            const isExecuted = Boolean(args._executed)
+            tokensToFetch.add(token)
+            map[id.toString()] = {
+              id,
+              token,
+              amountRaw,
+              confirmations: [],
+              executed: isExecuted
+            }
+          } catch {
+            // skip non-matching logs
           }
         })
+        
+        // Fetch metadata for any unknown tokens
+        await Promise.all(Array.from(tokensToFetch).map(fetchTokenMeta))
+        
         approved.forEach((log) => {
-          const id = (log.args?._id ?? 0n).toString()
-          const approver = (log.args?._approver as Address) ?? zeroAddress
-          if (!map[id]) return
-          if (!map[id].confirmations.some((addr) => addr.toLowerCase() === approver.toLowerCase())) {
-            map[id].confirmations = [...map[id].confirmations, approver]
+          try {
+            const decoded = decodeEventLog({
+              abi: [approvedEvent],
+              data: log.data,
+              topics: log.topics
+            })
+            const args = decoded.args as Record<string, unknown>
+            const id = (args._id as bigint)?.toString() ?? '0'
+            const approver = (args._approver as Address) ?? zeroAddress
+            if (!map[id]) return
+            if (!map[id].confirmations.some((addr) => addr.toLowerCase() === approver.toLowerCase())) {
+              map[id].confirmations = [...map[id].confirmations, approver]
+            }
+          } catch {
+            // skip
           }
         })
         executed.forEach((log) => {
-          const id = (log.args?._id ?? 0n).toString()
-          if (map[id]) map[id].executed = Boolean(log.args?._executed ?? true)
+          try {
+            const decoded = decodeEventLog({
+              abi: [executedEvent],
+              data: log.data,
+              topics: log.topics
+            })
+            const args = decoded.args as Record<string, unknown>
+            const id = (args._id as bigint)?.toString() ?? '0'
+            const isExecuted = Boolean(args._executed ?? true)
+            if (map[id]) map[id].executed = isExecuted
+          } catch {
+            // skip
+          }
         })
+        console.log('[Withdrawals] Final map:', map)
         setRows(map)
       } catch (err) {
-        console.warn('Unable to fetch withdraw history (limited range).', err)
+        console.error('[Withdrawals] Error fetching logs:', err)
       }
     })()
 
     return () => {
       ignore = true
     }
-  }, [publicClient, contractAddress])
+  }, [publicClient, contractAddress, fetchTokenMeta])
 
   useEffect(() => {
     fetchBalances()
@@ -133,20 +239,51 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
 
   useWatchContractEvent({
     address: contractAddress,
-    abi: invoiceFlowAbi,
+    abi: [registeredEvent],
     eventName: 'WithdrawRequestRegistered',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs(logs) {
+      // Fetch metadata for any new tokens
+      logs.forEach((log) => {
+        try {
+          const decoded = decodeEventLog({
+            abi: [registeredEvent],
+            data: log.data,
+            topics: log.topics
+          })
+          const token = (decoded.args as any)?._token as Address
+          if (token) fetchTokenMeta(token)
+        } catch {
+          // ignore non-matching logs
+        }
+      })
+      
       setRows((prev) => {
         const next = { ...prev }
         logs.forEach((log) => {
-          const id = (log.args?._id ?? 0n).toString()
-          next[id] = {
-            id: (log.args?._id ?? 0n) as bigint,
-            token: (log.args?._token as Address) ?? zeroAddress,
-            amountRaw: (log.args?._amount as bigint) ?? 0n,
-            confirmations: [],
-            executed: Boolean(log.args?._executed)
+          try {
+            const decoded = decodeEventLog({
+              abi: [registeredEvent],
+              data: log.data,
+              topics: log.topics
+            })
+            const args = decoded.args as Record<string, unknown>
+            const id = (args._id as bigint) ?? 0n
+            const amountRaw = (args._amount as bigint) ?? 0n
+            const token = (args._token as Address) ?? zeroAddress
+            const isExecuted = Boolean(args._executed)
+            
+            next[id.toString()] = {
+              id,
+              token,
+              amountRaw,
+              confirmations: [],
+              executed: isExecuted
+            }
+          } catch {
+            // skip
           }
         })
         return next
@@ -156,18 +293,30 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
 
   useWatchContractEvent({
     address: contractAddress,
-    abi: invoiceFlowAbi,
+    abi: [approvedEvent],
     eventName: 'WithdrawRequestApproved',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs(logs) {
       setRows((prev) => {
         const next = { ...prev }
         logs.forEach((log) => {
-          const id = (log.args?._id ?? 0n).toString()
-          const approver = (log.args?._approver as Address) ?? zeroAddress
-          if (!next[id]) return
-          if (!next[id].confirmations.some((addr) => addr.toLowerCase() === approver.toLowerCase())) {
-            next[id].confirmations = [...next[id].confirmations, approver]
+          try {
+            const decoded = decodeEventLog({
+              abi: [approvedEvent],
+              data: log.data,
+              topics: log.topics
+            })
+            const args = decoded.args as Record<string, unknown>
+            const id = (args._id as bigint)?.toString() ?? '0'
+            const approver = (args._approver as Address) ?? zeroAddress
+            if (!next[id]) return
+            if (!next[id].confirmations.some((addr) => addr.toLowerCase() === approver.toLowerCase())) {
+              next[id].confirmations = [...next[id].confirmations, approver]
+            }
+          } catch {
+            // skip
           }
         })
         return next
@@ -177,15 +326,28 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
 
   useWatchContractEvent({
     address: contractAddress,
-    abi: invoiceFlowAbi,
+    abi: [executedEvent],
     eventName: 'WithdrawRequestExecuted',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs(logs) {
       setRows((prev) => {
         const next = { ...prev }
         logs.forEach((log) => {
-          const id = (log.args?._id ?? 0n).toString()
-          if (next[id]) next[id].executed = Boolean(log.args?._executed ?? true)
+          try {
+            const decoded = decodeEventLog({
+              abi: [executedEvent],
+              data: log.data,
+              topics: log.topics
+            })
+            const args = decoded.args as Record<string, unknown>
+            const id = (args._id as bigint)?.toString() ?? '0'
+            const isExecuted = Boolean(args._executed ?? true)
+            if (next[id]) next[id].executed = isExecuted
+          } catch {
+            // skip
+          }
         })
         return next
       })

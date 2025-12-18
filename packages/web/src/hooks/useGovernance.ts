@@ -12,6 +12,8 @@ export function useGovernance(contractAddress?: Address, onSummaryChange?: () =>
     abi: invoiceFlowAbi,
     eventName: 'WithdrawAddressChangeRequested',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs([log]) {
       setPendingAddress((log?.args?._newAddress as Address) ?? null)
       onSummaryChange?.()
@@ -23,6 +25,8 @@ export function useGovernance(contractAddress?: Address, onSummaryChange?: () =>
     abi: invoiceFlowAbi,
     eventName: 'WithdrawAddressChanged',
     enabled: Boolean(contractAddress),
+    poll: true,
+    pollingInterval: 120000,
     onLogs() {
       setPendingAddress(null)
       onSummaryChange?.()

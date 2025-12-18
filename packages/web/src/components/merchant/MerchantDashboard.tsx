@@ -69,7 +69,7 @@ export function MerchantDashboard({
                     <th>Contract</th>
                     <th>Owners</th>
                     <th>Withdraw</th>
-                    <th>Approvals</th>
+                    <th>Withdraw Approvals</th>
                   </tr>
                 </thead>
                 <tbody>

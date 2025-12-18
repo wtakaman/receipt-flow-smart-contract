@@ -1,11 +1,11 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePublicClient } from 'wagmi'
 import type { Address } from 'viem'
 import type { PaidInvoice } from '../types/invoice'
 
 const env = import.meta.env
-const LOG_WINDOW_BLOCKS = BigInt(Number(env.VITE_LOG_WINDOW_BLOCKS ?? 10))
-const LOG_MAX_WINDOWS = Number(env.VITE_LOG_MAX_WINDOWS ?? 200) // total windows to scan
+const LOG_WINDOW_BLOCKS = BigInt(Number(env.VITE_LOG_WINDOW_BLOCKS ?? 50000))
+const LOG_MAX_WINDOWS = Number(env.VITE_LOG_MAX_WINDOWS ?? 3) // total windows to scan (3 × 50k = ~150k blocks = ~3 weeks)
 
 const INVOICE_PAID_EVENT = {
   type: 'event' as const,
@@ -32,6 +32,13 @@ export function usePaidInvoices(contractAddress?: Address) {
   const [error, setError] = useState<string | null>(null)
   const [hasFetched, setHasFetched] = useState(false)
   const fetchingRef = useRef(false)
+
+  // Reset state when contract address changes
+  useEffect(() => {
+    setPaidInvoices([])
+    setHasFetched(false)
+    setError(null)
+  }, [contractAddress])
 
   const fetchPaidInvoices = useCallback(async (forceRefresh = false) => {
     if (!publicClient || !contractAddress) return

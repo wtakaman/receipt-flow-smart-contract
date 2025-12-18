@@ -57,6 +57,7 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
   return (
     <section className="panel">
       <h2>Paid Invoices</h2>
+      <p className="section-lead">Receipt-backed payments with links to transactions and NFTs.</p>
       <div className="metrics">
         <Metric label="Total paid" value={paidInvoices.length} />
         {Object.entries(totals).map(([token, amount]) => {
@@ -92,12 +93,12 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
             <tbody>
               {paidInvoices.length === 0 && !isLoading && (
                 <tr>
-                  <td colSpan={6}>No paid invoices found.</td>
+                  <td colSpan={7}>No paid invoices found.</td>
                 </tr>
               )}
               {isLoading && paidInvoices.length === 0 && (
                 <tr>
-                  <td colSpan={6}>Loading paid invoices...</td>
+                  <td colSpan={7}>Loading paid invoices...</td>
                 </tr>
               )}
               {paginatedInvoices.map((invoice) => {
@@ -133,10 +134,10 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
                           {receiptNftAddress && invoice.receiptTokenId && (
                             <a
                               className="icon-link"
-                              href={`https://sepolia.etherscan.io/nft/${receiptNftAddress}/${invoice.receiptTokenId.toString()}`}
+                              href={`#/receipt/${receiptNftAddress}/${invoice.receiptTokenId.toString()}?tx=${invoice.txHash}`}
                               target="_blank"
                               rel="noreferrer"
-                              title="View receipt NFT"
+                              title="Open receipt page"
                             >
                               🧾
                             </a>

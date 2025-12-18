@@ -15,11 +15,20 @@ describe('CreateContractForm', () => {
 
     render(<CreateContractForm defaultOwner={ownerA as `0x${string}`} onCreate={onCreate} isSubmitting={false} />)
 
-    await user.clear(screen.getByLabelText(/Owners/i))
-    await user.type(screen.getByLabelText(/Owners/i), `${ownerA}, ${ownerB}`)
+    // First owner input is pre-filled with defaultOwner and is readonly (connected wallet)
+    const ownerInputs = screen.getAllByPlaceholderText('0x...')
+    expect(ownerInputs[0]).toHaveValue(ownerA)
+    expect(ownerInputs[0]).toHaveAttribute('readonly')
+
+    // Add second owner
+    await user.click(screen.getByRole('button', { name: /add owner/i }))
+    const updatedOwnerInputs = screen.getAllByPlaceholderText('0x...')
+    await user.type(updatedOwnerInputs[1], ownerB)
+
+    // Fill other fields
     await user.clear(screen.getByLabelText(/Withdraw address/i))
     await user.type(screen.getByLabelText(/Withdraw address/i), withdraw)
-    await user.type(screen.getByLabelText(/Accepted tokens/i), token)
+    await user.type(screen.getByLabelText(/Token addresses/i), token)
     await user.clear(screen.getByLabelText(/Required approvals/i))
     await user.type(screen.getByLabelText(/Required approvals/i), '2')
 

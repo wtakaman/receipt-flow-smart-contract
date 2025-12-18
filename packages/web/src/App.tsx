@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Address } from 'viem'
 import './App.css'
+import logoSvg from './assets/logo.svg'
 import { useAccount, useConnect, useDisconnect, usePublicClient } from 'wagmi'
-import { ConnectPanel } from './components/ConnectPanel'
 import { InvoicesPanel } from './components/panels/InvoicesPanel'
 import { WithdrawalsPanel } from './components/panels/WithdrawalsPanel'
 import { GovernancePanel } from './components/panels/GovernancePanel'
@@ -20,12 +20,16 @@ import { usePaidInvoices } from './hooks/usePaidInvoices'
 import { invoiceFlowAbi, normalizeAddressInput } from './config/contracts'
 import { InvoicePage } from './components/InvoicePage'
 import { ContractPage } from './components/ContractPage'
+import { ReceiptPage } from './components/ReceiptPage'
+import { HomePage } from './components/HomePage'
+import { WalletButton } from './components/common/WalletButton'
 
 type Role = 'merchant' | 'payer'
-const tabs = ['Invoices', 'Paid', 'Withdrawals', 'Governance'] as const
+const tabs = ['Invoices', 'Withdrawals', 'Governance'] as const
 type Tab = (typeof tabs)[number]
 type Route =
   | { type: 'home' }
+  | { type: 'app' }
   | {
       type: 'invoice'
       contractAddress: Address
@@ -35,10 +39,17 @@ type Route =
       type: 'contract'
       contractAddress: Address
     }
+  | {
+      type: 'receipt'
+      receiptNftAddress: Address
+      tokenId: bigint
+      txHash?: string
+    }
 
 function parseHash(): Route {
-  const hash = (typeof window !== 'undefined' ? window.location.hash : '').replace(/^#/, '')
-  const parts = hash.split('/').filter(Boolean)
+  const rawHash = (typeof window !== 'undefined' ? window.location.hash : '').replace(/^#/, '')
+  const [path, query] = rawHash.split('?')
+  const parts = path.split('/').filter(Boolean)
   if (parts[0] === 'invoice' && parts[1] && parts[2]) {
     const contract = normalizeAddressInput(parts[1]) as Address | undefined
     try {
@@ -50,6 +61,22 @@ function parseHash(): Route {
       // ignore parse errors
     }
   }
+  if (parts[0] === 'receipt' && parts[1] && parts[2]) {
+    const receiptAddress = normalizeAddressInput(parts[1]) as Address | undefined
+    try {
+      const tokenId = BigInt(parts[2])
+      if (receiptAddress) {
+        const params = new URLSearchParams(query ?? '')
+        const txHash = params.get('tx') ?? undefined
+        return { type: 'receipt', receiptNftAddress: receiptAddress, tokenId, txHash: txHash || undefined }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+  if (parts[0] === 'app') {
+    return { type: 'app' }
+  }
   if (parts[0] === 'contract' && parts[1]) {
     const contract = normalizeAddressInput(parts[1]) as Address | undefined
     if (contract) return { type: 'contract', contractAddress: contract }
@@ -58,6 +85,30 @@ function parseHash(): Route {
 }
 
 export default function App() {
+  const [route, setRoute] = useState<Route>(() => parseHash())
+  useEffect(() => {
+    const handler = () => setRoute(parseHash())
+    window.addEventListener('hashchange', handler)
+    return () => window.removeEventListener('hashchange', handler)
+  }, [])
+
+  if (route.type === 'home') {
+    return (
+      <div className="app marketing">
+        <HomePage
+          onLaunchApp={() => {
+            window.location.hash = 'app'
+            setRoute({ type: 'app' })
+          }}
+        />
+      </div>
+    )
+  }
+
+  return <MainApp route={route} />
+}
+
+function MainApp({ route }: { route: Route }) {
   const [role, setRole] = useState<Role>('payer')
   const [activeTab, setActiveTab] = useState<Tab>('Invoices')
   const [selectedContract, setSelectedContract] = useState<Address | undefined>()
@@ -68,11 +119,9 @@ export default function App() {
   const { connect, connectors, error: connectError, isPending: connectPending, pendingConnector } = useConnect()
   const { disconnect } = useDisconnect()
   const publicClient = usePublicClient()
-  const [route, setRoute] = useState<Route>(() => parseHash())
 
   const factoryState = useFactory()
   const payerContracts = useMemo(() => Array.from(new Set([...(factoryState.allContracts ?? [])])), [factoryState.allContracts])
-
   const payerState = usePayerInvoices(factoryState.factoryAddress, address as Address | undefined, payerContracts)
 
   const summary = useInvoiceSummary(selectedContract)
@@ -95,19 +144,22 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedContract && summary.contractAddress) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedContract(summary.contractAddress)
     }
   }, [selectedContract, summary.contractAddress])
 
   useEffect(() => {
     if (!publicClient || !address || !factoryState.deployedContracts.length) {
-      setOwnedContracts([])
+      setTimeout(() => setOwnedContracts([]), 0)
       return
     }
     let cancelled = false
     ;(async () => {
       const owned: Address[] = []
-      for (const contractAddress of factoryState.deployedContracts) {
+      // Limit to first 10 contracts to prevent RPC spam
+      const contractsToCheck = factoryState.deployedContracts.slice(0, 10)
+      for (const contractAddress of contractsToCheck) {
         try {
           const data = (await publicClient.readContract({
             address: contractAddress,
@@ -124,7 +176,7 @@ export default function App() {
       }
       if (cancelled) return
       setOwnedContracts(owned)
-      if (owned.length && role !== 'merchant') {
+      if (owned.length) {
         setRole('merchant')
         setSelectedContract((prev) => prev ?? owned[0])
       }
@@ -132,95 +184,88 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [address, factoryState.deployedContracts, publicClient, role])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, factoryState.deployedContracts.length, publicClient])
 
   useEffect(() => {
-    if (factoryState.deployedContracts.length > prevContractsCount.current) {
-      const latest = factoryState.deployedContracts[factoryState.deployedContracts.length - 1]
-      if (latest) {
-        // Only auto-select if the wallet owns it
-        if (ownedContracts.includes(latest)) {
-          setSelectedContract((prev) => prev ?? latest)
-          if (role !== 'merchant') setRole('merchant')
-        }
+    const currentLength = factoryState.deployedContracts.length
+    if (currentLength > prevContractsCount.current) {
+      const latest = factoryState.deployedContracts[currentLength - 1]
+      if (latest && ownedContracts.includes(latest)) {
+        setSelectedContract((prev) => prev ?? latest)
+        setRole('merchant')
       }
     }
-    prevContractsCount.current = factoryState.deployedContracts.length
-  }, [factoryState.deployedContracts, ownedContracts, role])
+    prevContractsCount.current = currentLength
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [factoryState.deployedContracts.length])
 
   useEffect(() => {
     payerState.refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, factoryState.factoryAddress, factoryState.deployedContracts, payerState.refresh, payerContracts])
-
-  useEffect(() => {
-    const handler = () => setRoute(parseHash())
-    window.addEventListener('hashchange', handler)
-    return () => window.removeEventListener('hashchange', handler)
-  }, [])
+  }, [address, factoryState.factoryAddress, factoryState.deployedContracts.length])
 
   useEffect(() => {
     if (!isConnected) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRole('payer')
       setSelectedContract(undefined)
       setOwnedContracts([])
     }
   }, [isConnected])
 
+  const walletButton = (
+    <WalletButton
+      isConnected={isConnected}
+      address={address}
+      connectors={connectors}
+      connect={connect}
+      disconnect={disconnect}
+      connectError={connectError}
+      connectPending={connectPending}
+      pendingConnector={pendingConnector}
+    />
+  )
+
   return (
     <div className="app">
-      {route.type === 'home' && (
+      {route.type === 'app' && (
         <header className="hero">
-          <p className="eyebrow">Receipt Flow Console</p>
-          <h1>On-chain invoicing dashboard</h1>
+          <div className="hero-top">
+            <div className="hero-brand">
+              <img src={logoSvg} alt="Receipt Flow" className="hero-logo" />
+              <p className="eyebrow">Receipt Flow Console</p>
+            </div>
+            <div className="hero-actions">{walletButton}</div>
+          </div>
+          <h1>Operate your on-chain invoicing</h1>
           <p className="lead">
-            Register invoices, guide customers through payments, orchestrate withdrawals, and govern the withdraw address from the deployed contract.
+            Connect your wallet, choose your role, and manage invoices, receipts, and withdrawals.
           </p>
-          <ConnectPanel
-            isConnected={isConnected}
-            address={address}
-            isOwner={isOwner}
-            isCustomer={isCustomer}
-            connectors={connectors}
-            connect={connect}
-            disconnect={disconnect}
-            connectError={connectError}
-            connectPending={connectPending}
-            pendingConnector={pendingConnector}
-          />
           <RoleSelector role={role} onSelect={setRole} />
         </header>
       )}
 
-      {route.type === 'invoice' ? (
+      {route.type === 'receipt' ? (
+        <ReceiptPage receiptNftAddress={route.receiptNftAddress} tokenId={route.tokenId} txHash={route.txHash} />
+      ) : route.type === 'invoice' ? (
         <InvoicePage
           contractAddress={route.contractAddress}
           invoiceId={route.invoiceId}
           address={address as Address | undefined}
           isConnected={isConnected}
-          connectors={connectors}
-          connect={connect}
-          disconnect={disconnect}
-          connectError={connectError}
-          connectPending={connectPending}
-          pendingConnector={pendingConnector}
+          walletButton={walletButton}
         />
       ) : route.type === 'contract' ? (
         <ContractPage
           contractAddress={route.contractAddress}
           address={address as Address | undefined}
           isConnected={isConnected}
-          connectors={connectors}
-          connect={connect}
-          disconnect={disconnect}
-          connectError={connectError}
-          connectPending={connectPending}
-          pendingConnector={pendingConnector}
+          walletButton={walletButton}
         />
       ) : role === 'merchant' ? (
         <MerchantDashboard
           address={address as Address | undefined}
-          deployedContracts={factoryState.deployedContracts}
           ownedContracts={ownedContracts}
           selectedContract={selectedContract}
           onSelectContract={setSelectedContract}
@@ -244,6 +289,13 @@ export default function App() {
               metrics={invoicesState.metrics}
               onRegisterInvoice={invoicesState.registerInvoice}
               onRemoveInvoice={invoicesState.removeInvoice}
+              paidInvoices={paidInvoicesState.paidInvoices}
+              isPaidLoading={paidInvoicesState.isLoading}
+              paidError={paidInvoicesState.error}
+              hasFetchedPaid={paidInvoicesState.hasFetched}
+              onFetchPaid={paidInvoicesState.fetch}
+              onRefreshPaid={paidInvoicesState.refetch}
+              chainId={summary.chainId}
             />
           )}
 
@@ -259,18 +311,6 @@ export default function App() {
               registerWithdraw={withdrawalsState.registerWithdrawRequest}
               approveWithdraw={withdrawalsState.approveWithdrawRequest}
               executeWithdraw={withdrawalsState.executeWithdrawRequest}
-            />
-          )}
-
-          {activeTab === 'Paid' && (
-            <PaidInvoicesPanel
-              paidInvoices={paidInvoicesState.paidInvoices}
-              isLoading={paidInvoicesState.isLoading}
-              error={paidInvoicesState.error}
-              hasFetched={paidInvoicesState.hasFetched}
-              onFetch={paidInvoicesState.fetch}
-              onRefresh={paidInvoicesState.refetch}
-              chainId={summary.chainId}
             />
           )}
 
