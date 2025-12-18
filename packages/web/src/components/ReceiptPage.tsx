@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Address } from 'viem'
 import { decodeEventLog, erc20Abi, formatUnits } from 'viem'
 import { usePublicClient } from 'wagmi'
@@ -35,15 +35,7 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
   const [data, setData] = useState<ReceiptData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
   const [resolvedTxHash, setResolvedTxHash] = useState<string | undefined>(txHash)
-
-  const shareUrl = useMemo(() => {
-    const base = typeof window !== 'undefined' ? window.location.origin : ''
-    const txParam = resolvedTxHash ?? txHash
-    const txPart = txParam ? `?tx=${txParam}` : ''
-    return `${base}/#/receipt/${resolvedAddress}/${resolvedTokenId.toString()}${txPart}`
-  }, [resolvedAddress, resolvedTokenId, txHash, resolvedTxHash])
 
   // If no txHash was provided, try to resolve it from ReceiptMinted logs
   useEffect(() => {
@@ -156,15 +148,6 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
     }
   }, [publicClient, receiptNftAddress, tokenId, txHash, resolvedTxHash])
 
-  const copyLink = () => {
-    if (navigator?.clipboard?.writeText) {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1800)
-      })
-    }
-  }
-
   const nftLink = `${explorerBase}/nft/${resolvedAddress}/${resolvedTokenId.toString()}`
   const txLink = (resolvedTxHash ?? txHash) ? `${explorerBase}/tx/${resolvedTxHash ?? txHash}` : null
   const invoiceLink = data ? `${explorerBase}/address/${data.invoiceContract}` : null
@@ -185,10 +168,6 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
       <div className="card receipt-card">
         <div className="receipt-summary">
           <div className="receipt-meta">
-            <div className="logo-mark">
-              <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
-              <span>Receipt Flow</span>
-            </div>
             <p className="eyebrow">Receipt NFT</p>
             <h2>#{resolvedTokenId.toString()}</h2>
             <p className="label micro">NFT address</p>
@@ -245,10 +224,7 @@ export function ReceiptPage({ receiptNftAddress, tokenId, txHash }: Props) {
               )}
             </div>
             <div className="receipt-actions">
-            <p className="label micro">Share & links</p>
-            <button type="button" onClick={copyLink} className="btn secondary wide">
-              {copied ? 'Copied' : 'Copy link'}
-            </button>
+            <p className="label micro">Links</p>
             <a className="btn secondary wide" href={nftLink} target="_blank" rel="noreferrer">
               Open NFT
             </a>
