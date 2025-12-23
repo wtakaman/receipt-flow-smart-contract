@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build:contracts && npm run build:web",
+  "buildCommand": "npm run build:web",
   "outputDirectory": "packages/web/dist",
   "installCommand": "npm install",
   "framework": null
