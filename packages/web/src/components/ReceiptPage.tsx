@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Address } from 'viem'
+import type { Address, Hash, Hex, PublicClient } from 'viem'
 import { decodeEventLog, erc20Abi, formatUnits } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { addTokenMeta, getTokenMeta, receiptNftAbi } from '../config/contracts'
@@ -262,12 +262,7 @@ function shortHash(value?: string, size = 6) {
 }
 
 async function fetchReceipt(
-  publicClient: {
-    readContract: typeof import('viem').readContract
-    getTransactionReceipt: (args: { hash: string }) => Promise<{
-      logs: { topics?: string[]; data: string; transactionHash?: string; address: Address }[]
-    }>
-  },
+  publicClient: PublicClient,
   initialAddress: Address,
   initialTokenId: bigint,
   txHash?: string
@@ -336,7 +331,7 @@ async function fetchReceipt(
     if (!txHash || !publicClient) throw err
 
     try {
-      const receipt = await publicClient.getTransactionReceipt({ hash: txHash })
+      const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hash })
       const receiptMintedAbi = {
         type: 'event',
         name: 'ReceiptMinted',
@@ -350,12 +345,14 @@ async function fetchReceipt(
       const topics0 = '0xcb133e83919b8bbacb3ab1cb2e9e2744efbd95937f70b5b661ea186688ef1b35' // keccak of ReceiptMinted(uint256,address,uint256,address)
 
       for (const log of receipt.logs) {
-        if (log.topics?.[0]?.toLowerCase() === topics0) {
+        const topics = log.topics as Hex[] | undefined
+        if (!topics || !topics[0]) continue
+        if (topics[0].toLowerCase() === topics0) {
           try {
             const decoded = decodeEventLog({
               abi: [receiptMintedAbi],
               data: log.data,
-              topics: log.topics
+              topics: topics as [Hex, ...Hex[]]
             })
             const decodedArgs = decoded.args as { tokenId?: bigint }
             const decodedTokenId = decodedArgs?.tokenId

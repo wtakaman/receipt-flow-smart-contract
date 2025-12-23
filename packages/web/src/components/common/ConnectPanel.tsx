@@ -8,7 +8,7 @@ type Props = {
 
 export function ConnectPanel({ roleBadges }: Props) {
   const { address, isConnected } = useAccount()
-  const { connect, connectors, error, isPending, pendingConnector } = useConnect()
+  const { connect, connectors, error, isPending } = useConnect()
   const { disconnect } = useDisconnect()
 
   return (
@@ -26,7 +26,7 @@ export function ConnectPanel({ roleBadges }: Props) {
           <button
             key={connector.id}
             type="button"
-            disabled={!connector.ready || (isPending && connector.id === pendingConnector?.id)}
+            disabled={!connector.ready || isPending}
             onClick={() => connect({ connector })}
           >
             Connect {connector.name}

@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import type { Address } from 'viem'
 import { useChainId } from 'wagmi'
 import { InvoicesPanel } from './panels/InvoicesPanel'
-import { PaidInvoicesPanel } from './panels/PaidInvoicesPanel'
 import { WithdrawalsPanel } from './panels/WithdrawalsPanel'
 import { GovernancePanel } from './panels/GovernancePanel'
 import { useInvoiceSummary } from '../hooks/useInvoiceSummary'
@@ -13,7 +12,7 @@ import { useGovernance } from '../hooks/useGovernance'
 import logoSvg from '../assets/logo.svg'
 import type { ReactNode } from 'react'
 
-type Tab = 'Invoices' | 'Paid' | 'Withdrawals' | 'Governance'
+type Tab = 'Invoices' | 'Withdrawals' | 'Governance'
 
 type Props = {
   contractAddress: Address
@@ -104,7 +103,7 @@ export function ContractPage({
             <h3>{contractAddress}</h3>
           </div>
           <nav className="tab-nav">
-            {(['Invoices', 'Paid', 'Withdrawals', 'Governance'] as Tab[]).map((tab) => (
+            {(['Invoices', 'Withdrawals', 'Governance'] as Tab[]).map((tab) => (
               <button key={tab} className={tab === activeTab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
                 {tab}
               </button>
@@ -117,21 +116,17 @@ export function ContractPage({
             isOwner={isOwner}
             supportedTokens={summary.supportedTokens}
             contractAddress={summary.contractAddress}
+            connectedAddress={address}
             invoices={invoicesState.invoices}
             metrics={invoicesState.metrics}
             onRegisterInvoice={invoicesState.registerInvoice}
             onRemoveInvoice={invoicesState.removeInvoice}
-          />
-        )}
-
-        {activeTab === 'Paid' && (
-          <PaidInvoicesPanel
             paidInvoices={paidInvoicesState.paidInvoices}
-            isLoading={paidInvoicesState.isLoading}
-            error={paidInvoicesState.error}
-            hasFetched={paidInvoicesState.hasFetched}
-            onFetch={paidInvoicesState.fetch}
-            onRefresh={paidInvoicesState.refetch}
+            isPaidLoading={paidInvoicesState.isLoading}
+            paidError={paidInvoicesState.error}
+            hasFetchedPaid={paidInvoicesState.hasFetched}
+            onFetchPaid={paidInvoicesState.fetch}
+            onRefreshPaid={paidInvoicesState.refetch}
             chainId={chainId}
           />
         )}
@@ -144,6 +139,7 @@ export function ContractPage({
             ownersCount={summary.owners.length}
             withdrawAddress={summary.withdrawAddress}
             withdrawRows={withdrawalsState.withdrawRows}
+            balances={withdrawalsState.balances}
             registerWithdraw={withdrawalsState.registerWithdrawRequest}
             approveWithdraw={withdrawalsState.approveWithdrawRequest}
             executeWithdraw={withdrawalsState.executeWithdrawRequest}

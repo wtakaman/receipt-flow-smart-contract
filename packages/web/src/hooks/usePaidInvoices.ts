@@ -82,13 +82,23 @@ export function usePaidInvoices(contractAddress?: Address) {
       for (let i = 0; i < maxWindows && toBlock >= 0; i++) {
         const fromBlock = toBlock > (windowSize - 1n) ? toBlock - (windowSize - 1n) : 0n
         try {
-          const winLogs = await publicClient.getLogs({
+          const winLogs = (await publicClient.getLogs({
             address: contractAddress,
             event: INVOICE_PAID_EVENT,
             fromBlock,
             toBlock
-          })
-          logs.push(...winLogs)
+          })) as Array<{
+            args?: LogEntry['args']
+            transactionHash: string
+            blockNumber: bigint
+          }>
+          logs.push(
+            ...winLogs.map((log) => ({
+              args: log.args,
+              transactionHash: log.transactionHash,
+              blockNumber: log.blockNumber
+            }))
+          )
         } catch (err) {
           // If even a tiny window fails, break to avoid hammering the RPC
           console.warn(`getLogs failed for window ${fromBlock.toString()}-${toBlock.toString()}`, err)
@@ -99,17 +109,20 @@ export function usePaidInvoices(contractAddress?: Address) {
       }
 
       // Process logs
-      const invoices: PaidInvoice[] = logs.map((log) => ({
-        id: log.args?._id ?? 0n,
-        customer: (log.args?._customer ?? '0x0') as Address,
-        token: (log.args?._token ?? '0x0') as Address,
-        amountRaw: log.args?._amount ?? 0n,
-        expiration: log.args?._expiration ?? 0n,
-        paidAt: Date.now(),
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-        receiptTokenId: log.args?._receiptTokenId
-      }))
+      const invoices: PaidInvoice[] = logs.map((log) => {
+        const args = log.args ?? {}
+        return {
+          id: args._id ?? 0n,
+          customer: (args._customer ?? '0x0') as Address,
+          token: (args._token ?? '0x0') as Address,
+          amountRaw: args._amount ?? 0n,
+          expiration: args._expiration ?? 0n,
+          paidAt: Date.now(),
+          txHash: log.transactionHash,
+          blockNumber: log.blockNumber,
+          receiptTokenId: args._receiptTokenId
+        }
+      })
 
       // Sort by block number (most recent first)
       const sorted = invoices.sort((a, b) => Number(b.blockNumber - a.blockNumber))

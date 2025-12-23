@@ -113,9 +113,9 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
             type RawInvoice = { id?: bigint; customer?: Address; amountRaw?: bigint; amount?: bigint; token?: Address; expiration?: bigint; 0?: Address; 1?: bigint; 2?: bigint; 3?: Address; 4?: bigint }
             const r = result as RawInvoice
             const invoiceId = r.id ?? id
-            const customerVal = r.customer ?? r[0]
+            const customerVal = (r.customer ?? r[0] ?? '0x0000000000000000000000000000000000000000') as Address
             const amountRaw = r.amountRaw ?? r.amount ?? r[2] ?? 0n
-            const tokenVal = r.token ?? r[3]
+            const tokenVal = (r.token ?? r[3] ?? '0x0000000000000000000000000000000000000000') as Address
             const expirationVal = r.expiration ?? r[4] ?? 0n
 
             const meta = await resolveMeta(tokenVal)

@@ -131,7 +131,7 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
                           >
                             🔗
                           </a>
-                          {receiptNftAddress && invoice.receiptTokenId && (
+                          {receiptNftAddress && invoice.receiptTokenId ? (
                             <a
                               className="icon-link"
                               href={`#/receipt/${receiptNftAddress}/${invoice.receiptTokenId.toString()}?tx=${invoice.txHash}`}
@@ -141,7 +141,7 @@ export function PaidInvoicesPanel({ paidInvoices, isLoading, error, hasFetched, 
                             >
                               🧾
                             </a>
-                          )}
+                          ) : null}
                         </div>
                       </td>
                     </tr>

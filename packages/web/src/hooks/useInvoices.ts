@@ -16,6 +16,12 @@ export type RegisterInvoiceParams = {
   expiresInDays: number
 }
 
+export type InvoiceMetrics = {
+  openCount: number
+  expiredCount: number
+  paidCount: number
+}
+
 type InvoiceOptions = {
   enablePolling?: boolean
   refetchIntervalMs?: number

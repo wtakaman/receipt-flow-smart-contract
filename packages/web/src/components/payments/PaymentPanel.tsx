@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ChainInvoice } from '../../hooks/useInvoices'
+import type { ChainInvoice } from '../../types/invoice'
 import type { EventEntry } from '../../types/events'
 import { getTokenMeta } from '../../config/contracts'
 import { formatUnits } from 'viem'

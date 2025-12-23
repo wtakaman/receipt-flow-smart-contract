@@ -266,7 +266,7 @@ export function InvoicesPanel({
                             >
                               🔗
                             </a>
-                            {receiptNftAddress && invoice.receiptTokenId && (
+                            {receiptNftAddress && invoice.receiptTokenId ? (
                               <a
                                 className="icon-link"
                                 href={`#/receipt/${receiptNftAddress}/${invoice.receiptTokenId.toString()}?tx=${invoice.txHash}`}
@@ -276,7 +276,7 @@ export function InvoicesPanel({
                               >
                                 🧾
                               </a>
-                            )}
+                            ) : null}
                           </div>
                         </td>
                       </tr>

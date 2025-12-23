@@ -413,18 +413,24 @@ function normalizeInvoiceFields(result: Record<string, unknown>, fallbackId: big
   const custLooksLikeAddr = /^0x[a-fA-F0-9]{40}$/.test(custStr)
   const customer: string = custLooksLikeAddr ? custStr : idLooksLikeAddr ? idStr : custStr
 
-  let parsedId: bigint
-  try {
-    if (!custLooksLikeAddr && /^\d+$/.test(custStr)) {
-      parsedId = BigInt(custStr)
-    } else if (!idLooksLikeAddr && /^\d+$/.test(idStr)) {
-      parsedId = BigInt(idStr)
-    } else {
-      parsedId = typeof rawId === 'bigint' ? rawId : BigInt(rawId ?? fallbackId)
+  const toBig = (value: unknown, fb: bigint): bigint => {
+    if (typeof value === 'bigint') return value
+    if (typeof value === 'number' || typeof value === 'string') {
+      try {
+        return BigInt(value)
+      } catch {
+        return fb
+      }
     }
-  } catch {
-    parsedId = fallbackId
+    return fb
   }
+
+  const parsedId =
+    !custLooksLikeAddr && /^\d+$/.test(custStr)
+      ? toBig(custStr, fallbackId)
+      : !idLooksLikeAddr && /^\d+$/.test(idStr)
+        ? toBig(idStr, fallbackId)
+        : toBig(rawId, fallbackId)
 
   return { id: parsedId, customer }
 }

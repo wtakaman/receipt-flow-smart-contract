@@ -1,10 +1,25 @@
 import { useState } from 'react'
 import type { Address } from 'viem'
 import { formatUnits, zeroAddress } from 'viem'
-import type { ChainInvoice, InvoiceMetrics, RegisterInvoiceInput } from '../../hooks/useInvoices'
+import type { ChainInvoice } from '../../types/invoice'
 import { getTokenMeta } from '../../config/contracts'
 import { formatDateFromSeconds, shortAddress } from '../../lib/format'
 import { Metric } from '../common/Metric'
+
+type InvoiceMetrics = {
+  openCount: number
+  expiredCount: number
+  paidCount: number
+}
+
+type RegisterInvoiceInput = {
+  id: bigint
+  customer: Address
+  token: Address
+  amount: string
+  expiresInDays: number
+  decimals: number
+}
 
 type Props = {
   invoices: ChainInvoice[]
@@ -31,12 +46,14 @@ export function InvoiceRegistry({ invoices, metrics, supportedTokens, isOwner, o
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!form.id || !form.customer || !form.amount || !form.token) return
+    const meta = getTokenMeta(form.token)
     await onRegister({
       id: BigInt(form.id),
       customer: form.customer as Address,
       token: form.token as Address,
       amount: form.amount,
-      expiresInDays: Number(form.expiresInDays || '30')
+      expiresInDays: Number(form.expiresInDays || '30'),
+      decimals: meta.decimals ?? 18
     })
     setForm(defaultForm)
   }
