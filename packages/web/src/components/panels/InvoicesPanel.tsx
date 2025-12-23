@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { Address } from 'viem'
-import { formatUnits } from 'viem'
-import { getTokenMeta, getReceiptNftAddress } from '../../config/contracts'
+import { formatUnits, erc20Abi } from 'viem'
+import { usePublicClient } from 'wagmi'
+import { getTokenMeta, getReceiptNftAddress, addTokenMeta } from '../../config/contracts'
 import type { ChainInvoice, PaidInvoice } from '../../types/invoice'
 import { Metric } from '../common/Metric'
 import { ShareInvoiceModal } from '../ShareInvoiceModal'
@@ -102,13 +103,13 @@ export function InvoicesPanel({
           className={subTab === 'open' ? 'active' : ''} 
           onClick={() => setSubTab('open')}
         >
-          Open ({metrics.openCount})
+          Open
         </button>
         <button 
           className={subTab === 'paid' ? 'active' : ''} 
           onClick={() => setSubTab('paid')}
         >
-          Paid ({paidInvoices.length || metrics.paidCount})
+          Paid
         </button>
       </div>
 
@@ -377,8 +378,50 @@ function CopyButton({ value }: { value: string }) {
 }
 
 function InvoiceDetails({ invoice, chainId }: { invoice: ChainInvoice; chainId?: number }) {
-  const meta = getTokenMeta(invoice.token)
+  const publicClient = usePublicClient()
+  const [meta, setMeta] = useState(() => getTokenMeta(invoice.token))
   const amountDisplay = formatAmount(invoice.amountRaw, meta.decimals)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!publicClient) return
+      
+      let tokenMeta = getTokenMeta(invoice.token)
+      const needsOnchain =
+        (!tokenMeta.name || tokenMeta.name.trim() === '' || tokenMeta.name === 'Unknown Token') ||
+        (!tokenMeta.symbol || tokenMeta.symbol === 'TOKEN' || tokenMeta.symbol === '???' || tokenMeta.symbol.trim() === '')
+
+      if (needsOnchain && invoice.token && invoice.token !== '0x0000000000000000000000000000000000000000') {
+        try {
+          const [onName, onSymbol, onDecimals] = await Promise.all([
+            publicClient.readContract({ address: invoice.token, abi: erc20Abi, functionName: 'name' }).catch(() => undefined),
+            publicClient.readContract({ address: invoice.token, abi: erc20Abi, functionName: 'symbol' }).catch(() => undefined),
+            publicClient.readContract({ address: invoice.token, abi: erc20Abi, functionName: 'decimals' }).catch(() => undefined)
+          ])
+          tokenMeta = {
+            name: (onName as string | undefined) ?? tokenMeta.name,
+            symbol: (onSymbol as string | undefined) ?? tokenMeta.symbol ?? 'TOKEN',
+            decimals: Number(onDecimals ?? tokenMeta.decimals ?? 18),
+            isNative: tokenMeta.isNative
+          }
+          if (tokenMeta.symbol && tokenMeta.symbol !== '???' && tokenMeta.symbol !== 'TOKEN') {
+            addTokenMeta(invoice.token, tokenMeta)
+          }
+        } catch {
+          // ignore failures, keep fallback meta
+        }
+      }
+
+      if (!cancelled) {
+        setMeta(tokenMeta)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [publicClient, invoice.token])
+
   return (
     <dl className="details">
       <div>
@@ -457,8 +500,49 @@ function explorerTxLink(chainId: number | undefined, txHash: string) {
 }
 
 function PaidInvoiceDetails({ invoice, chainId }: { invoice: PaidInvoice; chainId?: number }) {
-  const meta = getTokenMeta(invoice.token)
+  const publicClient = usePublicClient()
+  const [meta, setMeta] = useState(() => getTokenMeta(invoice.token))
   const amountDisplay = formatAmount(invoice.amountRaw, meta.decimals)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!publicClient) return
+      
+      let tokenMeta = getTokenMeta(invoice.token)
+      const needsOnchain =
+        (!tokenMeta.name || tokenMeta.name.trim() === '' || tokenMeta.name === 'Unknown Token') ||
+        (!tokenMeta.symbol || tokenMeta.symbol === 'TOKEN' || tokenMeta.symbol === '???' || tokenMeta.symbol.trim() === '')
+
+      if (needsOnchain && invoice.token && invoice.token !== '0x0000000000000000000000000000000000000000') {
+        try {
+          const [onName, onSymbol, onDecimals] = await Promise.all([
+            publicClient.readContract({ address: invoice.token, abi: erc20Abi, functionName: 'name' }).catch(() => undefined),
+            publicClient.readContract({ address: invoice.token, abi: erc20Abi, functionName: 'symbol' }).catch(() => undefined),
+            publicClient.readContract({ address: invoice.token, abi: erc20Abi, functionName: 'decimals' }).catch(() => undefined)
+          ])
+          tokenMeta = {
+            name: (onName as string | undefined) ?? tokenMeta.name,
+            symbol: (onSymbol as string | undefined) ?? tokenMeta.symbol ?? 'TOKEN',
+            decimals: Number(onDecimals ?? tokenMeta.decimals ?? 18),
+            isNative: tokenMeta.isNative
+          }
+          if (tokenMeta.symbol && tokenMeta.symbol !== '???' && tokenMeta.symbol !== 'TOKEN') {
+            addTokenMeta(invoice.token, tokenMeta)
+          }
+        } catch {
+          // ignore failures, keep fallback meta
+        }
+      }
+
+      if (!cancelled) {
+        setMeta(tokenMeta)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [publicClient, invoice.token])
 
   return (
     <dl className="details">
