@@ -40,14 +40,11 @@ export function HomePage({ onLaunchApp }: Props) {
           <span>Receipt Flow Console</span>
         </div>
         <nav>
-          <a href="#process">How it works</a>
-          <a href="#features">Features</a>
-          <a href="#cta">Get started</a>
+          <a href="#process">Architecture</a>
+          <a href="#features">Capabilities</a>
+          <a href="#faq">FAQ</a>
         </nav>
         <div className="header-actions">
-          <a className="link" href="https://github.com/wtakaman/receipt-flow-smart-contract" target="_blank" rel="noreferrer">
-            View code
-          </a>
           <button className="cta" onClick={onLaunchApp}>
             Launch app
           </button>
@@ -166,18 +163,18 @@ export function HomePage({ onLaunchApp }: Props) {
         </div>
       </section>
 
-      <section className="cta-banner" id="cta">
+      <section className="cta-banner" id="testimonials">
         <div>
-          <p className="eyebrow">Open Source & Free</p>
-          <h2>Own your financial infrastructure</h2>
-          <p className="small">No subscriptions, no hidden fees. Just deploy and run.</p>
+          <p className="eyebrow">What builders say</p>
+          <h2>“The easiest way to prove on-chain payments.”</h2>
+          <p className="small">Auditable receipts, multi-sig control, and ERC-20 flexibility in one flow.</p>
         </div>
         <button className="cta" onClick={onLaunchApp}>
           Launch app
         </button>
       </section>
 
-      <section className="faq">
+      <section className="faq" id="faq">
         <div className="section-header">
           <p className="eyebrow">FAQ</p>
           <h2 className="section-title">Frequently Asked Questions</h2>
