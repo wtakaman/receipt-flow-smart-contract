@@ -19,23 +19,23 @@ Multi-owner escrow, invoice payments, and soulbound payment receipts in one stac
 
 ```mermaid
 flowchart LR
-  merchant[Merchant/Owners (wallets)]
-  customer[Customer (wallet)]
-  ui[React UI (Vite + wagmi/viem)]
-  factory[InvoiceFlowContractFactory]
-  processor[InvoiceFlowContract]
-  receiptNFT[ReceiptNFT (soulbound)]
-  storage[On-chain Storage]
+  merchant["Merchant/Owners (wallets)"]
+  customer["Customer (wallet)"]
+  ui["React UI (Vite + wagmi/viem)"]
+  factory["InvoiceFlowContractFactory"]
+  processor["InvoiceFlowContract"]
+  receiptNFT["ReceiptNFT (soulbound)"]
+  storage["On-chain Storage"]
 
-  merchant -->|Configure owners, tokens, withdraw address| factory
+  merchant -->|"Configure owners, tokens, withdraw address"| factory
   factory -->|Deploys| processor
-  ui <-->|RPC (Sepolia/Mumbai/Hardhat)| processor
+  ui <-->|"RPC (Sepolia/Mumbai/Hardhat)"| processor
   ui <-->|RPC| factory
-  customer -->|Pay invoice (ETH/ERC-20)| processor
-  processor -->|Mint receipt| receiptNFT
-  processor -->|Funds held| storage
-  merchant -->|Approve withdraw| processor
-  processor -->|Payout to withdraw address| storage
+  customer -->|"Pay invoice (ETH/ERC-20)"| processor
+  processor -->|"Mint receipt"| receiptNFT
+  processor -->|"Funds held"| storage
+  merchant -->|"Approve withdraw"| processor
+  processor -->|"Payout to withdraw address"| storage
 ```
 
 See the visual at `packages/web/src/assets/flow_diagram.svg` for a styled version.
