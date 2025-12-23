@@ -9,7 +9,7 @@ type Props = {
 const faqs = [
   {
     q: 'Is Receipt Flow free to use?',
-    a: 'Yes. The project is 100% open source. You can deploy contracts and use the hosted UI for free. You only pay standard network gas fees.'
+    a: 'Yes. You can deploy contracts and use the hosted UI for free. You only pay standard network gas fees.'
   },
   {
     q: 'Why "Soulbound" receipts?',
