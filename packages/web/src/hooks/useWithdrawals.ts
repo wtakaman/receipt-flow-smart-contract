@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { usePublicClient, useWriteContract } from 'wagmi'
 import type { Address } from 'viem'
-import { formatUnits, parseUnits } from 'viem'
-import { invoiceFlowAbi } from '../config/contracts'
+import { erc20Abi, formatUnits, parseUnits, zeroAddress } from 'viem'
+import { getTokenMeta, invoiceFlowAbi, addTokenMeta } from '../config/contracts'
 import type { WithdrawRow } from '../types/invoice'
 
 type BalanceEntry = {
@@ -28,18 +28,54 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
   const fetchBalances = useCallback(async () => {
     if (!contractAddress || !supportedTokens || !publicClient) return
 
-    // Default ETH balance
-    const ethBalance = await publicClient.getBalance({ address: contractAddress })
-    const newBalances: Record<string, BalanceEntry> = {
-      '0x0000000000000000000000000000000000000000': {
-        raw: ethBalance,
-        formatted: formatUnits(ethBalance, 18),
-        symbol: 'ETH'
+    const newBalances: Record<string, BalanceEntry> = {}
+
+    for (const token of supportedTokens) {
+      const key = token.toLowerCase()
+      if (token === zeroAddress) {
+        const ethBalance = await publicClient.getBalance({ address: contractAddress })
+        const meta = getTokenMeta(token)
+        newBalances[key] = {
+          raw: ethBalance,
+          formatted: formatUnits(ethBalance, meta.decimals ?? 18),
+          symbol: meta.symbol ?? 'ETH'
+        }
+        continue
+      }
+
+      let meta = getTokenMeta(token)
+      // If metadata is incomplete, try on-chain fetch
+      if (!meta.symbol || !meta.decimals || meta.symbol === '???') {
+        try {
+          const [onSymbol, onDecimals] = await Promise.all([
+            publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'symbol' }).catch(() => undefined),
+            publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' }).catch(() => undefined)
+          ])
+          meta = {
+            ...meta,
+            symbol: (onSymbol as string | undefined) ?? meta.symbol ?? 'TOKEN',
+            decimals: Number(onDecimals ?? meta.decimals ?? 18)
+          }
+          addTokenMeta(token, meta)
+        } catch {
+          // ignore metadata fetch failures
+        }
+      }
+
+      const tokenBalance = await publicClient.readContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [contractAddress]
+      }) as bigint
+
+      newBalances[key] = {
+        raw: tokenBalance,
+        formatted: formatUnits(tokenBalance, meta.decimals ?? 18),
+        symbol: meta.symbol ?? 'TOKEN'
       }
     }
 
-    // Fetch other tokens
-    // Simplified for now, in real app we'd use multicall or loops
     setBalances(newBalances)
   }, [contractAddress, supportedTokens, publicClient])
 
@@ -103,9 +139,9 @@ export function useWithdrawals(contractAddress?: Address, supportedTokens?: Addr
     approveWithdrawRequest,
     executeWithdrawRequest,
     balances,
-    tokenFormatter: (_token: Address, amountRaw: bigint) => {
-      // Mock formatter for now
-      return { symbol: 'ETH', decimals: 18, formatted: formatUnits(amountRaw, 18) }
+    tokenFormatter: (token: Address, amountRaw: bigint) => {
+      const meta = getTokenMeta(token)
+      return { symbol: meta.symbol ?? 'TOKEN', decimals: meta.decimals ?? 18, formatted: formatUnits(amountRaw, meta.decimals ?? 18) }
     }
   }
 }
