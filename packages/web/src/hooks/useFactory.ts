@@ -40,8 +40,7 @@ export function useFactory() {
     abi: invoiceFactoryAbi,
     eventName: 'NewInvoiceFlowContract',
     enabled: Boolean(factoryAddress),
-    poll: true,
-    pollingInterval: 120000,
+    poll: false,
     onLogs() {
       refetch()
     }

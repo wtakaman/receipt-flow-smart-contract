@@ -4,7 +4,7 @@ import type { Connector } from 'wagmi'
 type Props = {
   isConnected: boolean
   address?: string
-  connectors: Connector[]
+  connectors: readonly Connector[]
   connect: (args: { connector: Connector }) => void
   disconnect: () => void
   connectError?: Error | null

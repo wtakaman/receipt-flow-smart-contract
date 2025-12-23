@@ -6,16 +6,17 @@ import { invoiceFlowAbi } from '../config/contracts'
 export function useGovernance(contractAddress?: Address, onSummaryChange?: () => void) {
   const { writeContractAsync } = useWriteContract()
   const [pendingAddress, setPendingAddress] = useState<Address | null>(null)
+  const eventsEnabled = Boolean(contractAddress)
 
   useWatchContractEvent({
     address: contractAddress,
     abi: invoiceFlowAbi,
     eventName: 'WithdrawAddressChangeRequested',
-    enabled: Boolean(contractAddress),
-    poll: true,
-    pollingInterval: 120000,
+    enabled: eventsEnabled,
+    poll: false,
     onLogs([log]) {
-      setPendingAddress((log?.args?._newAddress as Address) ?? null)
+      const next = (log as { args?: { _newAddress?: Address } })?.args?._newAddress as Address | undefined
+      setPendingAddress(next ?? null)
       onSummaryChange?.()
     }
   })
@@ -24,9 +25,8 @@ export function useGovernance(contractAddress?: Address, onSummaryChange?: () =>
     address: contractAddress,
     abi: invoiceFlowAbi,
     eventName: 'WithdrawAddressChanged',
-    enabled: Boolean(contractAddress),
-    poll: true,
-    pollingInterval: 120000,
+    enabled: eventsEnabled,
+    poll: false,
     onLogs() {
       setPendingAddress(null)
       onSummaryChange?.()

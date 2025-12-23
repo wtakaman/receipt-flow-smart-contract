@@ -113,7 +113,7 @@ function ContractRow({
 }: {
   addr: Address
 }) {
-  const summary = useInvoiceSummary(addr)
+  const summary = useInvoiceSummary(addr, { enablePolling: false, staleTime: Infinity })
   return ( 
     <tr>
       <td>{addr}</td>

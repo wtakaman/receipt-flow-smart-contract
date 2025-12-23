@@ -30,20 +30,20 @@ type Route =
   | { type: 'home' }
   | { type: 'app' }
   | {
-      type: 'invoice'
-      contractAddress: Address
-      invoiceId: bigint
-    }
+    type: 'invoice'
+    contractAddress: Address
+    invoiceId: bigint
+  }
   | {
-      type: 'contract'
-      contractAddress: Address
-    }
+    type: 'contract'
+    contractAddress: Address
+  }
   | {
-      type: 'receipt'
-      receiptNftAddress: Address
-      tokenId: bigint
-      txHash?: string
-    }
+    type: 'receipt'
+    receiptNftAddress: Address
+    tokenId: bigint
+    txHash?: string
+  }
 
 function parseHash(): Route {
   const rawHash = (typeof window !== 'undefined' ? window.location.hash : '').replace(/^#/, '')
@@ -110,25 +110,44 @@ export default function App() {
 function MainApp({ route }: { route: Route }) {
   const [role, setRole] = useState<Role>('payer')
   const [activeTab, setActiveTab] = useState<Tab>('Invoices')
-  const [selectedContract, setSelectedContract] = useState<Address | undefined>()
+  const [selectedContract, setSelectedContract] = useState<Address | undefined>(undefined)
   const [ownedContracts, setOwnedContracts] = useState<Address[]>([])
   const prevContractsCount = useRef(0)
 
+  // DEMO MODE: Mock wallet connection
+  // const address = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as Address
+  // const isConnected = true
   const { address, isConnected } = useAccount()
-  const { connect, connectors, error: connectError, isPending: connectPending, pendingConnector } = useConnect()
+  const { connect, connectors, error: connectError, isPending: connectPending } = useConnect()
   const { disconnect } = useDisconnect()
   const publicClient = usePublicClient()
 
   const factoryState = useFactory()
   const payerContracts = useMemo(() => Array.from(new Set([...(factoryState.allContracts ?? [])])), [factoryState.allContracts])
-  const payerState = usePayerInvoices(factoryState.factoryAddress, address as Address | undefined, payerContracts)
 
-  const summary = useInvoiceSummary(selectedContract)
-  const invoicesState = useInvoices(summary.contractAddress)
-  const withdrawalsState = useWithdrawals(summary.contractAddress, summary.supportedTokens)
-  const governanceState = useGovernance(summary.contractAddress, summary.refetchSummary)
-  const paidInvoicesState = usePaidInvoices(summary.contractAddress)
+  // Only fetch payer data when in payer role
+  const payerState = usePayerInvoices(
+    role === 'payer' ? factoryState.factoryAddress : undefined,
+    role === 'payer' ? (address as Address | undefined) : undefined,
+    role === 'payer' ? payerContracts : undefined
+  )
 
+  // Only fetch merchant data when in merchant role
+  const summary = useInvoiceSummary(role === 'merchant' ? selectedContract : undefined, { enablePolling: true })
+  const invoicesState = useInvoices(
+    role === 'merchant' ? summary.contractAddress : undefined,
+    role === 'merchant' ? (address as Address | undefined) : undefined,
+    { enablePolling: false }
+  )
+  const withdrawalsState = useWithdrawals(
+    role === 'merchant' ? summary.contractAddress : undefined,
+    summary.supportedTokens,
+    { enablePolling: false }
+  )
+  const governanceState = useGovernance(role === 'merchant' ? summary.contractAddress : undefined, summary.refetchSummary)
+  const paidInvoicesState = usePaidInvoices(role === 'merchant' ? summary.contractAddress : undefined)
+
+  // const isOwner = true
   const isOwner = useMemo(() => {
     if (!address) return false
     return summary.owners.some((owner) => owner && owner.toLowerCase() === (address as Address)?.toLowerCase())
@@ -146,32 +165,32 @@ function MainApp({ route }: { route: Route }) {
       return
     }
     let cancelled = false
-    ;(async () => {
-      const owned: Address[] = []
-      // Limit to first 10 contracts to prevent RPC spam
-      const contractsToCheck = factoryState.deployedContracts.slice(0, 10)
-      for (const contractAddress of contractsToCheck) {
-        try {
-          const data = (await publicClient.readContract({
-            address: contractAddress,
-            abi: invoiceFlowAbi,
-            functionName: 'getSummary'
-          })) as [Address[], Address[], Address, bigint]
-          const owners = data?.[0] ?? []
-          if (owners.some((owner) => owner.toLowerCase() === address.toLowerCase())) {
-            owned.push(contractAddress)
+      ; (async () => {
+        const owned: Address[] = []
+        // Limit to first 10 contracts to prevent RPC spam
+        const contractsToCheck = factoryState.deployedContracts.slice(0, 10)
+        for (const contractAddress of contractsToCheck) {
+          try {
+            const data = (await publicClient.readContract({
+              address: contractAddress,
+              abi: invoiceFlowAbi,
+              functionName: 'getSummary'
+            })) as [Address[], Address[], Address, bigint]
+            const owners = data?.[0] ?? []
+            if (owners.some((owner) => owner.toLowerCase() === address.toLowerCase())) {
+              owned.push(contractAddress)
+            }
+          } catch {
+            // ignore invalid contract addresses
           }
-        } catch {
-          // ignore invalid contract addresses
         }
-      }
-      if (cancelled) return
-      setOwnedContracts(owned)
-      if (owned.length) {
-        setRole('merchant')
-        setSelectedContract((prev) => prev ?? owned[0])
-      }
-    })()
+        if (cancelled) return
+        setOwnedContracts(owned)
+        if (owned.length) {
+          setRole('merchant')
+          setSelectedContract((prev) => prev ?? owned[0])
+        }
+      })()
     return () => {
       cancelled = true
     }
@@ -192,9 +211,11 @@ function MainApp({ route }: { route: Route }) {
   }, [factoryState.deployedContracts.length])
 
   useEffect(() => {
-    payerState.refresh()
+    if (role === 'payer') {
+      payerState.refresh()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, factoryState.factoryAddress, factoryState.deployedContracts.length])
+  }, [address, factoryState.factoryAddress, factoryState.deployedContracts.length, role])
 
   useEffect(() => {
     if (!isConnected) {
@@ -213,27 +234,51 @@ function MainApp({ route }: { route: Route }) {
       disconnect={disconnect}
       connectError={connectError}
       connectPending={connectPending}
-      pendingConnector={pendingConnector}
+      pendingConnector={undefined}
     />
   )
 
   return (
     <div className="app">
       {route.type === 'app' && (
-        <header className="hero">
-          <div className="hero-top">
-            <div className="logo-mark">
-              <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
-              <span>Receipt Flow</span>
+        <>
+          <header className="hero">
+            <div className="hero-top">
+              <div className="logo-mark">
+                <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
+                <span>Receipt Flow</span>
+              </div>
+              <div className="hero-actions">{walletButton}</div>
             </div>
-            <div className="hero-actions">{walletButton}</div>
-          </div>
-          <h1>Operate your on-chain invoicing</h1>
-          <p className="lead">
-            Connect your wallet, choose your role, and manage invoices, receipts, and withdrawals.
-          </p>
-          <RoleSelector role={role} onSelect={setRole} />
-        </header>
+            <h1>Operate your on-chain invoicing</h1>
+            <p className="lead">
+              Connect your wallet, choose your role, and manage invoices, receipts, and withdrawals.
+            </p>
+            {isConnected && <RoleSelector role={role} onSelect={setRole} />}
+          </header>
+
+          {!isConnected && (
+            <section className="panel">
+              <div className="card">
+                <h3>Connect your wallet to get started</h3>
+                <p className="muted" style={{ marginBottom: '1.5rem' }}>
+                  Please connect your wallet to access the application. You'll be able to choose between:
+                </p>
+                <div className="info-grid two-col" style={{ marginBottom: '1.5rem' }}>
+                  <div className="info-card">
+                    <p className="label">Merchant</p>
+                    <p className="muted">Deploy and manage invoice contracts, register invoices, and handle withdrawals.</p>
+                  </div>
+                  <div className="info-card">
+                    <p className="label">Payer</p>
+                    <p className="muted">View and pay invoices assigned to your wallet address.</p>
+                  </div>
+                </div>
+                <p className="muted">Use the wallet button above to connect.</p>
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       {route.type === 'receipt' ? (
@@ -252,80 +297,87 @@ function MainApp({ route }: { route: Route }) {
           address={address as Address | undefined}
           walletButton={walletButton}
         />
-      ) : role === 'merchant' ? (
-        <MerchantDashboard
-          address={address as Address | undefined}
-          ownedContracts={ownedContracts}
-          selectedContract={selectedContract}
-          onSelectContract={setSelectedContract}
-          onCreateContract={factoryState.createContract}
-          isCreating={factoryState.isCreating}
-        >
-          <nav className="tab-nav">
-            {tabs.map((tab) => (
-              <button key={tab} className={tab === activeTab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
-                {tab}
-              </button>
-            ))}
-          </nav>
+      ) : isConnected && address ? (
+        role === 'merchant' ? (
+          <MerchantDashboard
+            address={address as Address | undefined}
+            ownedContracts={ownedContracts}
+            selectedContract={selectedContract}
+            onSelectContract={setSelectedContract}
+            onCreateContract={factoryState.createContract}
+            isCreating={factoryState.isCreating}
+          >
+            {selectedContract && ownedContracts.length > 0 && (
+              <>
+                <nav className="tab-nav">
+                  {tabs.map((tab) => (
+                    <button key={tab} className={tab === activeTab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
+                      {tab}
+                    </button>
+                  ))}
+                </nav>
 
-          {activeTab === 'Invoices' && (
-            <InvoicesPanel
-              isOwner={isOwner}
-              supportedTokens={summary.supportedTokens}
-              contractAddress={summary.contractAddress}
-              invoices={invoicesState.invoices}
-              metrics={invoicesState.metrics}
-              onRegisterInvoice={invoicesState.registerInvoice}
-              onRemoveInvoice={invoicesState.removeInvoice}
-              paidInvoices={paidInvoicesState.paidInvoices}
-              isPaidLoading={paidInvoicesState.isLoading}
-              paidError={paidInvoicesState.error}
-              hasFetchedPaid={paidInvoicesState.hasFetched}
-              onFetchPaid={paidInvoicesState.fetch}
-              onRefreshPaid={paidInvoicesState.refetch}
-              chainId={summary.chainId}
-            />
-          )}
+                {activeTab === 'Invoices' && (
+                  <InvoicesPanel
+                    isOwner={isOwner}
+                    supportedTokens={summary.supportedTokens}
+                    contractAddress={summary.contractAddress}
+                    connectedAddress={address as Address | undefined}
+                    invoices={invoicesState.invoices}
+                    metrics={invoicesState.metrics}
+                    onRegisterInvoice={invoicesState.registerInvoice}
+                    onRemoveInvoice={invoicesState.removeInvoice}
+                    paidInvoices={paidInvoicesState.paidInvoices}
+                    isPaidLoading={paidInvoicesState.isLoading}
+                    paidError={paidInvoicesState.error}
+                    hasFetchedPaid={paidInvoicesState.hasFetched}
+                    onFetchPaid={paidInvoicesState.fetch}
+                    onRefreshPaid={paidInvoicesState.refetch}
+                    chainId={summary.chainId}
+                  />
+                )}
 
-          {activeTab === 'Withdrawals' && (
-            <WithdrawalsPanel
-              isOwner={isOwner}
-              supportedTokens={summary.supportedTokens}
-              requiredApprovals={summary.requiredApprovals}
-              ownersCount={summary.owners.length}
-              withdrawAddress={summary.withdrawAddress}
-              withdrawRows={withdrawalsState.withdrawRows}
-              balances={withdrawalsState.balances}
-              registerWithdraw={withdrawalsState.registerWithdrawRequest}
-              approveWithdraw={withdrawalsState.approveWithdrawRequest}
-              executeWithdraw={withdrawalsState.executeWithdrawRequest}
-            />
-          )}
+                {activeTab === 'Withdrawals' && (
+                  <WithdrawalsPanel
+                    isOwner={isOwner}
+                    supportedTokens={summary.supportedTokens}
+                    requiredApprovals={summary.requiredApprovals}
+                    ownersCount={summary.owners.length}
+                    withdrawAddress={summary.withdrawAddress}
+                    withdrawRows={withdrawalsState.withdrawRows}
+                    balances={withdrawalsState.balances}
+                    registerWithdraw={withdrawalsState.registerWithdrawRequest}
+                    approveWithdraw={withdrawalsState.approveWithdrawRequest}
+                    executeWithdraw={withdrawalsState.executeWithdrawRequest}
+                  />
+                )}
 
-          {activeTab === 'Governance' && (
-            <GovernancePanel
-              withdrawAddress={summary.withdrawAddress}
-              pendingAddress={governanceState.pendingAddress}
-              requiredApprovals={summary.requiredApprovals}
-              isOwner={isOwner}
-              proposeAddress={governanceState.proposeAddress}
-              confirmAddress={governanceState.confirmAddress}
-            />
-          )}
-        </MerchantDashboard>
-      ) : (
-        <PayerDashboard
-          invoices={payerState.invoices}
-          isLoading={payerState.isLoading}
-          paymentStatus={payerState.paymentMessage}
-          setPaymentStatus={payerState.setPaymentMessage}
-          onRefresh={payerState.refresh}
-          onPay={payerState.payInvoice}
-          chainId={summary.chainId}
-        />
-      )}
+                {activeTab === 'Governance' && (
+                  <GovernancePanel
+                    withdrawAddress={summary.withdrawAddress}
+                    pendingAddress={governanceState.pendingAddress}
+                    requiredApprovals={summary.requiredApprovals}
+                    isOwner={isOwner}
+                    proposeAddress={governanceState.proposeAddress}
+                    confirmAddress={governanceState.confirmAddress}
+                  />
+                )}
+              </>
+            )}
+          </MerchantDashboard>
+        ) : (
+          <PayerDashboard
+            invoices={payerState.invoices}
+            isLoading={payerState.isLoading}
+            paymentStatus={payerState.paymentMessage}
+            setPaymentStatus={payerState.setPaymentMessage}
+            onRefresh={payerState.refresh}
+            onPay={payerState.payInvoice}
+            chainId={summary.chainId}
+          />
+        )
+      ) : null}
     </div>
   )
 }
- 
+

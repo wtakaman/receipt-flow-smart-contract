@@ -7,8 +7,8 @@ describe('RoleSelector', () => {
     const onSelect = vi.fn()
     render(<RoleSelector role="merchant" onSelect={onSelect} />)
 
-    const merchantBtn = screen.getByRole('button', { name: /merchant view/i })
-    const payerBtn = screen.getByRole('button', { name: /payer view/i })
+    const merchantBtn = screen.getByRole('button', { name: /merchant/i })
+    const payerBtn = screen.getByRole('button', { name: /payer/i })
 
     expect(merchantBtn).toHaveClass('active')
     expect(payerBtn).not.toHaveClass('active')

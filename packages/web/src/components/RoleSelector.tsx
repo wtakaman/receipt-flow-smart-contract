@@ -9,10 +9,10 @@ export function RoleSelector({ role, onSelect }: Props) {
   return (
     <nav className="tab-nav">
       <button className={role === 'merchant' ? 'active' : ''} onClick={() => onSelect('merchant')}>
-        Merchant view
+        Merchant
       </button>
       <button className={role === 'payer' ? 'active' : ''} onClick={() => onSelect('payer')}>
-        Payer view
+        Payer
       </button>
     </nav>
   )

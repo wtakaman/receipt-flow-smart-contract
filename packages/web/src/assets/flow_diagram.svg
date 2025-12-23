@@ -1,0 +1,98 @@
+<svg width="1000" height="400" viewBox="0 0 1000 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1000" height="400" fill="#1a1a1a"/>
+
+  <!-- Styles -->
+  <style>
+    .text { font-family: 'Inter', system-ui, sans-serif; fill: white; font-size: 14px; text-anchor: middle; }
+    .label { font-family: 'Inter', system-ui, sans-serif; fill: #888; font-size: 12px; text-anchor: middle; }
+    .path { stroke: #646cff; stroke-width: 2; fill: none; }
+    .arrow { fill: #646cff; }
+    .box { fill: #1f2020; stroke: #333; stroke-width: 2; rx: 8; }
+    .box-active { fill: #1f2020; stroke: #646cff; stroke-width: 2; rx: 8; }
+    .icon { fill: #646cff; }
+  </style>
+
+  <!-- Definitions for Arrowhead -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" class="arrow" />
+    </marker>
+  </defs>
+
+  <!-- Nodes -->
+  
+  <!-- Merchant -->
+  <g transform="translate(50, 100)">
+    <rect x="0" y="0" width="100" height="80" class="box"/>
+    <text x="50" y="70" class="text" font-weight="bold">Merchant</text>
+    <!-- Simple Icon -->
+    <path d="M50 20 C60 20 65 30 65 40 L35 40 C35 30 40 20 50 20 Z M35 45 L65 45 L65 55 L35 55 Z" fill="#ccc"/>
+  </g>
+
+  <!-- Customer -->
+  <g transform="translate(50, 250)">
+    <rect x="0" y="0" width="100" height="80" class="box"/>
+    <text x="50" y="70" class="text" font-weight="bold">Customer</text>
+     <!-- Icon -->
+     <circle cx="50" cy="35" r="10" fill="none" stroke="#ccc" stroke-width="2"/>
+     <path d="M35 55 Q50 45 65 55" stroke="#ccc" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Smart Contract (Center Config) -->
+  <g transform="translate(400, 100)">
+     <rect x="0" y="0" width="200" height="230" class="box-active" stroke-dasharray="0"/>
+     <text x="100" y="30" class="text" fill="#646cff" font-weight="bold" font-size="16">Smart Contract</text>
+     
+     <!-- Internal Logic Visuals -->
+     <rect x="20" y="50" width="160" height="40" rx="4" fill="#2a2a2a" stroke="none"/>
+     <text x="100" y="75" class="label" fill="#fff">Registry &amp; Rules</text>
+
+     <rect x="20" y="110" width="160" height="40" rx="4" fill="#2a2a2a" stroke="none"/>
+     <text x="100" y="135" class="label" fill="#fff">Payment Logic</text>
+
+     <rect x="20" y="170" width="160" height="40" rx="4" fill="#2a2a2a" stroke="none"/>
+     <text x="100" y="195" class="label" fill="#fff">Vault (Funds)</text>
+  </g>
+
+  <!-- Receipt NFT -->
+  <g transform="translate(750, 100)">
+    <rect x="0" y="0" width="120" height="80" class="box" stroke="#00ff9d" />
+    <text x="60" y="70" class="text" fill="#00ff9d">Receipt NFT</text>
+    <path d="M40 25 L80 25 L80 50 L40 50 Z M50 35 L70 35 M50 42 L65 42" stroke="#00ff9d" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Owners -->
+  <g transform="translate(750, 250)">
+    <rect x="0" y="0" width="120" height="80" class="box"/>
+    <text x="60" y="70" class="text" font-weight="bold">Owners</text>
+    <circle cx="45" cy="35" r="5" fill="#ccc"/>
+    <circle cx="60" cy="35" r="5" fill="#ccc"/>
+    <circle cx="75" cy="35" r="5" fill="#ccc"/>
+  </g>
+
+
+  <!-- Connections -->
+
+  <!-- Merchant -> Contract (Deploy) -->
+  <path d="M150 120 L390 120" class="path" marker-end="url(#arrowhead)"/>
+  <text x="275" y="110" class="label">1. Deploys</text>
+
+  <!-- Merchant -> Contract (Registers) -->
+  <path d="M150 160 C250 160 250 180 390 180" class="path" marker-end="url(#arrowhead)"/>
+  <text x="275" y="170" class="label">2. Registers Invoice</text>
+
+  <!-- Customer -> Contract (Pays) -->
+  <path d="M150 290 L390 290" class="path" marker-end="url(#arrowhead)"/>
+  <text x="275" y="280" class="label">3. Pays (ETH/ERC20)</text>
+
+  <!-- Contract -> NFT (Mints) -->
+  <path d="M600 140 L740 140" class="path" stroke="#00ff9d" marker-end="url(#arrowhead)" style="fill: #00ff9d;"/>
+  <!-- Re-style arrow for NFT -->
+  <text x="675" y="130" class="label" fill="#00ff9d">4. Mints</text>
+
+  <!-- Contract -> Owners (Withdraw) -->
+  <path d="M600 290 L740 290" class="path" marker-end="url(#arrowhead)"/>
+  <text x="675" y="280" class="label">5. Withdraw</text>
+
+</svg>

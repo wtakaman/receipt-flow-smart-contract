@@ -21,6 +21,7 @@ type Props = {
   invoices: ChainInvoice[]
   metrics: Metrics
   contractAddress?: Address
+  connectedAddress?: Address
   onRegisterInvoice: (params: {
     id: bigint
     customer: Address
@@ -48,6 +49,7 @@ export function InvoicesPanel({
   invoices,
   metrics,
   contractAddress,
+  connectedAddress,
   onRegisterInvoice,
   onRemoveInvoice,
   paidInvoices,
@@ -321,6 +323,7 @@ export function InvoicesPanel({
         open={registerOpen}
         supportedTokens={supportedTokens}
         defaultToken={defaultToken}
+        connectedAddress={connectedAddress}
         onClose={() => setRegisterOpen(false)}
         onSubmit={async (params) => {
           await onRegisterInvoice(params)

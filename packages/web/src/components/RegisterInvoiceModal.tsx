@@ -13,6 +13,7 @@ type Props = {
   open: boolean
   supportedTokens: Address[]
   defaultToken: Address
+  connectedAddress?: Address
   onClose: () => void
   onSubmit: (params: {
     id: bigint
@@ -24,7 +25,7 @@ type Props = {
   }) => Promise<void>
 }
 
-export function RegisterInvoiceModal({ open, supportedTokens, defaultToken, onClose, onSubmit }: Props) {
+export function RegisterInvoiceModal({ open, supportedTokens, defaultToken, connectedAddress, onClose, onSubmit }: Props) {
   const tokens = supportedTokens.length ? supportedTokens : [defaultToken]
   const [form, setForm] = useState<FormState>({
     id: '',
@@ -34,6 +35,10 @@ export function RegisterInvoiceModal({ open, supportedTokens, defaultToken, onCl
     expiresInDays: '30'
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const normalizedCustomer = normalizeAddressInput(form.customer)
+  const isSelfInvoice = normalizedCustomer && connectedAddress && 
+    normalizedCustomer.toLowerCase() === connectedAddress.toLowerCase()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -89,6 +94,11 @@ export function RegisterInvoiceModal({ open, supportedTokens, defaultToken, onCl
                 placeholder="0x..."
                 required
               />
+              {isSelfInvoice && (
+                <p className="muted warning-text" style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                  ⚠️ Warning: You're creating an invoice to your own address. This is unusual.
+                </p>
+              )}
             </label>
             <label>
               Amount

@@ -1,22 +1,38 @@
 import { useChainId, useReadContract } from 'wagmi'
 import type { Address } from 'viem'
-import { getInvoiceContractAddress, invoiceFlowAbi } from '../config/contracts'
+import { invoiceFlowAbi } from '../config/contracts'
 
-export function useInvoiceSummary(contractAddressOverride?: Address) {
+type SummaryOptions = {
+  enablePolling?: boolean
+  refetchIntervalMs?: number
+  staleTime?: number
+}
+
+export function useInvoiceSummary(contractAddressOverride?: Address, options?: SummaryOptions) {
   const chainId = useChainId()
-  const contractAddress = contractAddressOverride ?? getInvoiceContractAddress(chainId)
+  const contractAddress = contractAddressOverride
+  const enablePolling = options?.enablePolling ?? true
+  const refetchIntervalMs = options?.refetchIntervalMs ?? 120000
 
   const { data, refetch, isLoading } = useReadContract({
     address: contractAddress,
     abi: invoiceFlowAbi,
     functionName: 'getSummary',
-    query: { enabled: Boolean(contractAddress) }
+    query: {
+      enabled: Boolean(contractAddress),
+      refetchInterval: enablePolling ? refetchIntervalMs : false,
+      staleTime: options?.staleTime
+    }
   })
 
-  const owners = (data?.[0] as Address[]) ?? []
-  const supportedTokens = (data?.[1] as Address[]) ?? []
-  const withdrawAddress = (data?.[2] as Address) ?? undefined
-  const requiredApprovals = data ? Number(data[3] ?? 0n) : 0
+  const [owners, supportedTokens, withdrawAddress, requiredApprovalsRaw] = (data as [
+    Address[],
+    Address[],
+    Address,
+    bigint
+  ]) || [[], [], undefined, 0n]
+
+  const requiredApprovals = Number(requiredApprovalsRaw)
 
   return {
     chainId,

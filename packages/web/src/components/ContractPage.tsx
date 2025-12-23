@@ -39,6 +39,42 @@ export function ContractPage({
     return summary.owners.some((owner) => owner && owner.toLowerCase() === address.toLowerCase())
   }, [address, summary.owners])
 
+  // Show connection prompt if wallet is not connected
+  if (!address) {
+    return (
+      <div className="app">
+        <header className="hero">
+          <div className="hero-top">
+            <div className="logo-mark">
+              <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
+              <span>Receipt Flow</span>
+            </div>
+            <div className="hero-actions">{walletButton}</div>
+          </div>
+          <h1>Contract management</h1>
+          <p className="lead">Manage invoices, withdrawals, and governance for this contract.</p>
+        </header>
+
+        <section className="panel">
+          <div className="row-actions" style={{ marginTop: '0.5rem' }}>
+            <a className="link-button" href="#/">
+              ← Back to home
+            </a>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="card">
+            <h3>Connect to view this contract</h3>
+            <p className="muted">Please connect your wallet to load the contract details.</p>
+            <p className="label micro" style={{ marginTop: '1rem' }}>Contract address</p>
+            <p className="muted mono">{contractAddress}</p>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <header className="hero">
