@@ -1,5 +1,8 @@
 # Receipt Flow
 
+> [!WARNING]
+> This project is deployed and intended for testnet use only (e.g., Sepolia). Do not use for mainnet funds.
+
 Multi-owner escrow, invoice payments, and soulbound payment receipts in one stack. This monorepo houses the smart contracts and the React UI.
 
 ## Problem Statement
