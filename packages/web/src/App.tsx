@@ -45,6 +45,14 @@ type Route =
     txHash?: string
   }
 
+function TestnetBanner() {
+  return (
+    <div className="testnet-banner">
+      Warning: contracts and UI are deployed for Sepolia testnet.
+    </div>
+  )
+}
+
 function parseHash(): Route {
   const rawHash = (typeof window !== 'undefined' ? window.location.hash : '').replace(/^#/, '')
   const [path, query] = rawHash.split('?')
@@ -94,6 +102,7 @@ export default function App() {
   if (route.type === 'home') {
     return (
       <div className="app marketing">
+        <TestnetBanner />
         <HomePage
           onLaunchApp={() => {
             window.location.hash = 'app'
@@ -240,6 +249,7 @@ function MainApp({ route }: { route: Route }) {
 
   return (
     <div className="app">
+      <TestnetBanner />
       {route.type === 'app' && (
         <>
           <header className="hero">
