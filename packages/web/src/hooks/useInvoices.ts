@@ -84,7 +84,12 @@ export function useInvoices(contractAddress?: Address, excludeCustomerAddress?: 
         } as ChainInvoice
       })
       .filter((inv): inv is ChainInvoice => inv !== null)
-      .sort((a, b) => Number(b.id - a.id)) // Newest first
+      .sort((a, b) => {
+        // Expiration desc, then id desc
+        const expDiff = Number(b.expiration - a.expiration)
+        if (expDiff !== 0) return expDiff
+        return Number(b.id - a.id)
+      })
   }, [invoicesData, invoiceIds, excludeCustomerAddress])
 
   const metrics = useMemo(() => {
@@ -160,6 +165,11 @@ export function useInvoices(contractAddress?: Address, excludeCustomerAddress?: 
     })
   }, [contractAddress, writeContractAsync])
 
+  const refresh = useCallback(async () => {
+    await refetchInvoiceIds()
+    await refetchInvoices()
+  }, [refetchInvoiceIds, refetchInvoices])
+
   return {
     invoices,
     metrics,
@@ -170,7 +180,8 @@ export function useInvoices(contractAddress?: Address, excludeCustomerAddress?: 
     registerInvoice,
     removeInvoice,
     payInvoice,
-    fetchEventHistory: async () => { }
+    fetchEventHistory: async () => { },
+    refresh
   }
 }
 

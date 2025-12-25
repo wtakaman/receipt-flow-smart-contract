@@ -44,7 +44,7 @@ export function PayerDashboard({
                   <th>Contract</th>
                   <th>Token</th>
                   <th>Amount</th>
-                  <th>Expiration</th>
+                  <th>Status</th>
                   <th />
                 </tr>
               </thead>
@@ -57,12 +57,13 @@ export function PayerDashboard({
                 {invoices.map((invoice) => {
                   const meta = getTokenMeta(invoice.token)
                   const displaySymbol = invoice.tokenSymbol ?? meta.symbol
-                  const expiration =
-                    invoice.expiration === 0n ? '—' : new Date(Number(invoice.expiration) * 1000).toLocaleDateString()
                   const key = `${invoice.contractAddress}-${invoice.id.toString()}`
                   const formatted = formatUnits(invoice.amountRaw, meta.decimals)
                   const isExpanded = expandedId === key
                   const isPaid = invoice.isPaid === true
+                  const expired = isExpired(invoice.expiration)
+                  const status = isPaid ? 'Paid' : expired ? 'Expired' : 'Open'
+                  const statusClass = isPaid ? 'success' : expired ? 'error' : 'warning'
                 return (
                   <Fragment key={key}>
                     <tr className={isExpanded ? 'row expanded' : ''}>
@@ -70,9 +71,11 @@ export function PayerDashboard({
                       <td>{shortAddress(invoice.contractAddress)}</td>
                       <td>{displaySymbol}</td>
                       <td>
-                        {Number(formatted).toLocaleString(undefined, { maximumFractionDigits: 4 })} {displaySymbol}
+                        {Number(formatted).toLocaleString(undefined, { maximumFractionDigits: 4 })}
                       </td>
-                      <td>{isPaid ? 'Paid' : expiration}</td>
+                      <td>
+                        <span className={`badge ${statusClass}`}>{status}</span>
+                      </td>
                       <td>
                         <div className="row-actions">
                           <button
@@ -84,9 +87,21 @@ export function PayerDashboard({
                             {isExpanded ? 'Hide' : 'View'}
                           </button>
                           {isPaid ? (
-                            <span className="badge success">Paid</span>
+                            invoice.receiptTokenId !== undefined && invoice.receiptNftAddress ? (
+                              <a
+                                href={`#/receipt/${invoice.receiptNftAddress}/${invoice.receiptTokenId.toString()}${invoice.txHash ? `?tx=${invoice.txHash}` : ''}`}
+                                className="btn-link"
+                                title="View Receipt NFT"
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                📜 Receipt
+                              </a>
+                            ) : (
+                              <span className="muted-text">No receipt</span>
+                            )
                           ) : (
-                            <button type="button" onClick={() => onPay(invoice)} disabled={isExpired(invoice.expiration)}>
+                            <button type="button" onClick={() => onPay(invoice)} disabled={expired}>
                               Pay
                             </button>
                           )}
@@ -121,6 +136,9 @@ function InvoiceDetails({
   invoice: PayerInvoice
   chainId?: number
 }) {
+  const isPaid = invoice.isPaid === true
+  const hasReceipt = isPaid && invoice.receiptTokenId !== undefined && invoice.receiptNftAddress
+  
   return (
     <dl className="details">
       <div>
@@ -131,6 +149,31 @@ function InvoiceDetails({
         <dt>Status</dt>
         <dd>{invoice.isPaid ? 'Paid' : isExpired(invoice.expiration) ? 'Expired' : 'Open'}</dd>
       </div>
+      {hasReceipt && (
+        <div>
+          <dt>Receipt NFT</dt>
+          <dd className="copy-line">
+            <a
+              href={`#/receipt/${invoice.receiptNftAddress}/${invoice.receiptTokenId!.toString()}${invoice.txHash ? `?tx=${invoice.txHash}` : ''}`}
+              className="btn-link"
+              title="View Receipt NFT"
+              target="_blank"
+              rel="noreferrer"
+            >
+              📜 Receipt #{invoice.receiptTokenId!.toString()}
+            </a>
+            <a
+              href={explorerLink(chainId, invoice.receiptNftAddress!, 'nft', invoice.receiptTokenId!.toString())}
+              target="_blank"
+              rel="noreferrer"
+              title="View on explorer"
+              className="icon-link"
+            >
+              🔗
+            </a>
+          </dd>
+        </div>
+      )}
       <div>
         <dt>Contract</dt>
         <dd className="copy-line">
@@ -207,11 +250,18 @@ function isExpired(expiration: bigint) {
   return expiration < now
 }
 
-function explorerLink(chainId: number | undefined, address: string) {
+function explorerLink(chainId: number | undefined, address: string, type: 'address' | 'nft' = 'address', tokenId?: string) {
   const addr = normalizeAddressInput(address) ?? address
-  if (chainId === 11155111) return `https://sepolia.etherscan.io/address/${addr}`
-  if (chainId === 80001) return `https://mumbai.polygonscan.com/address/${addr}`
-  return `https://etherscan.io/address/${addr}`
+  const base = chainId === 11155111 
+    ? 'https://sepolia.etherscan.io' 
+    : chainId === 80001 
+    ? 'https://mumbai.polygonscan.com' 
+    : 'https://etherscan.io'
+  
+  if (type === 'nft' && tokenId) {
+    return `${base}/nft/${addr}/${tokenId}`
+  }
+  return `${base}/address/${addr}`
 }
 
 function CopyButton({ value }: { value: string }) {

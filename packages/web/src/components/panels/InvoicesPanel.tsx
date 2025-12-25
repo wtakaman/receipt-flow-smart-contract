@@ -32,6 +32,7 @@ type Props = {
     expiresInDays: number
   }) => Promise<void>
   onRemoveInvoice: (id: bigint) => Promise<void>
+  onRefreshOpen: () => Promise<void>
   // Paid invoices props
   paidInvoices: PaidInvoice[]
   isPaidLoading: boolean
@@ -53,6 +54,7 @@ export function InvoicesPanel({
   connectedAddress,
   onRegisterInvoice,
   onRemoveInvoice,
+  onRefreshOpen,
   paidInvoices,
   isPaidLoading,
   paidError,
@@ -68,6 +70,7 @@ export function InvoicesPanel({
   const [registerOpen, setRegisterOpen] = useState(false)
   const [subTab, setSubTab] = useState<SubTab>('open')
   const [currentPage, setCurrentPage] = useState(1)
+  const [isRefreshingOpen, setIsRefreshingOpen] = useState(false)
 
   // Fetch paid invoices when switching to paid tab (only once per contract)
   useEffect(() => {
@@ -81,10 +84,19 @@ export function InvoicesPanel({
     setCurrentPage(1)
   }, [paidInvoices.length])
 
+  // Sort paid invoices by expiration desc, then id desc
+  const sortedPaidInvoices = useMemo(() => {
+    return [...paidInvoices].sort((a, b) => {
+      const expDiff = Number(b.expiration - a.expiration)
+      if (expDiff !== 0) return expDiff
+      return Number(b.id - a.id)
+    })
+  }, [paidInvoices])
+
   // Pagination for paid invoices
-  const totalPages = Math.ceil(paidInvoices.length / PAGE_SIZE)
+  const totalPages = Math.ceil(sortedPaidInvoices.length / PAGE_SIZE)
   const startIndex = (currentPage - 1) * PAGE_SIZE
-  const paginatedPaidInvoices = paidInvoices.slice(startIndex, startIndex + PAGE_SIZE)
+  const paginatedPaidInvoices = sortedPaidInvoices.slice(startIndex, startIndex + PAGE_SIZE)
 
   const receiptNftAddress = getReceiptNftAddress(chainId)
 
@@ -118,9 +130,26 @@ export function InvoicesPanel({
         <article className="card table-card">
           <div className="table-header">
             <h3>Open invoices</h3>
-            <button type="button" onClick={() => setRegisterOpen(true)} disabled={!isOwner}>
-              Register invoice
-            </button>
+            <div className="table-actions">
+              <button
+                style={{marginRight: '10px'}}
+                type="button"
+                onClick={async () => {
+                  setIsRefreshingOpen(true)
+                  try {
+                    await onRefreshOpen()
+                  } finally {
+                    setIsRefreshingOpen(false)
+                  }
+                }}
+                disabled={isRefreshingOpen}
+              >
+                {isRefreshingOpen ? 'Refreshing...' : 'Refresh'}
+              </button>
+              <button type="button" onClick={() => setRegisterOpen(true)} disabled={!isOwner}>
+                Register invoice
+              </button>
+            </div>
           </div>
           <div className="table-wrapper">
             <table className="data-table">
@@ -269,13 +298,13 @@ export function InvoicesPanel({
                             </a>
                             {receiptNftAddress && invoice.receiptTokenId ? (
                               <a
-                                className="icon-link"
+                                className="btn-link"
                                 href={`#/receipt/${receiptNftAddress}/${invoice.receiptTokenId.toString()}?tx=${invoice.txHash}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                title="Open receipt page"
+                                title="View Receipt NFT"
                               >
-                                🧾
+                                📜 Receipt
                               </a>
                             ) : null}
                           </div>
@@ -328,6 +357,7 @@ export function InvoicesPanel({
         onClose={() => setRegisterOpen(false)}
         onSubmit={async (params) => {
           await onRegisterInvoice(params)
+          await onRefreshOpen()
           setRegisterOpen(false)
         }}
       />
