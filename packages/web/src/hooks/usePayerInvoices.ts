@@ -252,9 +252,13 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
         }
       }
 
-      // 3) Combine and sort (most recent first)
-      const all = [...paidInvoices, ...unpaid]
-      setInvoices(all.sort((a, b) => Number(b.id - a.id)))
+      // 3) Combine and sort (expiration desc, then id desc)
+      const all = [...paidInvoices, ...unpaid].sort((a, b) => {
+        const expDiff = Number(b.expiration - a.expiration)
+        if (expDiff !== 0) return expDiff
+        return Number(b.id - a.id)
+      })
+      setInvoices(all)
     } catch (err) {
       console.warn('[payer] refresh failed', err)
     } finally {

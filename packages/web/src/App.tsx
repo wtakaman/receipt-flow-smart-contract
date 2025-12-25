@@ -337,6 +337,7 @@ function MainApp({ route }: { route: Route }) {
                     metrics={invoicesState.metrics}
                     onRegisterInvoice={invoicesState.registerInvoice}
                     onRemoveInvoice={invoicesState.removeInvoice}
+                    onRefreshOpen={invoicesState.refresh}
                     paidInvoices={paidInvoicesState.paidInvoices}
                     isPaidLoading={paidInvoicesState.isLoading}
                     paidError={paidInvoicesState.error}
