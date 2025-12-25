@@ -291,6 +291,12 @@
   border-color: var(--warning-border);
 }
 
+.badge.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .badge.large {
   font-size: 1rem;
   padding: 8px 20px;
@@ -2313,6 +2319,35 @@ label .hint {
 .btn.wide {
   width: 100%;
   justify-content: center;
+}
+
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--accent-primary);
+  text-decoration: none;
+  background: var(--accent-ghost);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-link:hover {
+  background: var(--accent-light);
+  border-color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.muted-text {
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  font-style: italic;
+}
 }
 
 .info-grid {

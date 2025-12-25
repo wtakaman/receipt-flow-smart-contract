@@ -269,13 +269,13 @@ export function InvoicesPanel({
                             </a>
                             {receiptNftAddress && invoice.receiptTokenId ? (
                               <a
-                                className="icon-link"
+                                className="btn-link"
                                 href={`#/receipt/${receiptNftAddress}/${invoice.receiptTokenId.toString()}?tx=${invoice.txHash}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                title="Open receipt page"
+                                title="View Receipt NFT"
                               >
-                                🧾
+                                📜 Receipt
                               </a>
                             ) : null}
                           </div>

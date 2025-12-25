@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import type { Address } from 'viem'
 import { erc20Abi } from 'viem'
 import { usePublicClient, useWriteContract } from 'wagmi'
-import { getTokenMeta, invoiceFactoryAbi, invoiceFlowAbi, normalizeAddressInput } from '../config/contracts'
+import { addTokenMeta, getTokenMeta, invoiceFactoryAbi, invoiceFlowAbi, normalizeAddressInput, getReceiptNftAddress } from '../config/contracts'
 import type { ChainInvoice } from '../types/invoice'
 
 export type PayerInvoice = ChainInvoice & {
@@ -11,6 +11,9 @@ export type PayerInvoice = ChainInvoice & {
   tokenSymbol?: string
   tokenDecimals?: number
   isPaid?: boolean
+  receiptTokenId?: bigint
+  receiptNftAddress?: Address
+  txHash?: string
 }
 
 export function usePayerInvoices(factoryAddress?: Address, customer?: Address, contractList?: Address[]) {
@@ -55,6 +58,11 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
         { name?: string; symbol: string; decimals: number; isNative?: boolean }
       > = {}
 
+      const shortToken = (token: Address | string, size = 4) => {
+        if (!token) return 'Unknown'
+        return `${token.slice(0, size + 2)}…${token.slice(-size)}`
+      }
+
       const resolveMeta = async (token: Address | string | undefined) => {
         const key = (token ?? '').toLowerCase()
         if (!key) return { name: 'Token', symbol: 'TOKEN', decimals: 18 }
@@ -63,7 +71,7 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
         if (!base.symbol || base.symbol.trim() === '') base = { ...base, symbol: 'TOKEN' }
         const needsOnchain =
           (!base.name || base.name.trim() === '') ||
-          (!base.symbol || base.symbol === 'TOKEN' || base.symbol.trim() === '')
+          (!base.symbol || base.symbol === 'TOKEN' || base.symbol === '???' || base.symbol.trim() === '')
         if (needsOnchain && token && token !== '0x0000000000000000000000000000000000000000') {
           try {
             const [onName, onSymbol, onDecimals] = await Promise.all([
@@ -81,11 +89,99 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
             // ignore fetch failures
           }
         }
+        // Persist good metadata so later getTokenMeta calls (e.g. in UI) stay consistent
+        if (token && base.symbol && base.symbol !== '???' && base.symbol.trim() !== '') {
+          addTokenMeta(token as Address, base)
+        }
         metaCache[key] = base
         return base
       }
 
-      const found: PayerInvoice[] = []
+      const withFallbackSymbol = (token: Address, meta: { name?: string; symbol: string; decimals: number; isNative?: boolean }) => {
+        const symbolOk = meta.symbol && meta.symbol !== '???' && meta.symbol.trim() !== ''
+        const nameOk = meta.name && meta.name.trim() !== '' && meta.name !== 'Unknown Token'
+        return {
+          ...meta,
+          symbol: symbolOk ? meta.symbol : shortToken(token),
+          name: nameOk ? meta.name : symbolOk ? meta.symbol : shortToken(token)
+        }
+      }
+
+      const INVOICE_PAID_EVENT = {
+        type: 'event' as const,
+        name: 'InvoicePaid',
+        inputs: [
+          { type: 'uint256', name: '_id', indexed: false },
+          { type: 'address', name: '_customer', indexed: true },
+          { type: 'uint256', name: '_amount', indexed: false },
+          { type: 'address', name: '_token', indexed: true },
+          { type: 'uint256', name: '_expiration', indexed: false },
+          { type: 'address', name: '_invoiceContract', indexed: false },
+          { type: 'uint256', name: '_receiptTokenId', indexed: false }
+        ]
+      }
+
+      const receiptNftAddress = getReceiptNftAddress(publicClient.chain?.id)
+
+      // 1) Fetch paid invoices from events (these are removed from contract storage)
+      const paidInvoices: PayerInvoice[] = []
+      const paidKeys = new Set<string>()
+      for (const contractAddress of deployed) {
+        try {
+          const latestBlock = await publicClient.getBlockNumber()
+          const windowSize = 50000n
+          const toBlock = latestBlock
+          const fromBlock = toBlock > windowSize ? toBlock - windowSize : 0n
+
+          const logs = (await publicClient.getLogs({
+            address: contractAddress,
+            event: INVOICE_PAID_EVENT,
+            args: { _customer: customer },
+            fromBlock,
+            toBlock
+          })) as Array<{
+            args?: {
+              _id?: bigint
+              _customer?: Address
+              _amount?: bigint
+              _token?: Address
+              _expiration?: bigint
+              _invoiceContract?: Address
+              _receiptTokenId?: bigint
+            }
+            transactionHash: string
+          }>
+
+          for (const log of logs) {
+            const args = log.args ?? {}
+            if (args._id === undefined) continue
+            const key = `${contractAddress.toLowerCase()}-${args._id.toString()}`
+            paidKeys.add(key)
+            const tokenVal = (args._token ?? '0x0000000000000000000000000000000000000000') as Address
+            const meta = withFallbackSymbol(tokenVal, await resolveMeta(tokenVal))
+            paidInvoices.push({
+              id: args._id,
+              customer,
+              token: tokenVal,
+              amountRaw: args._amount ?? 0n,
+              expiration: args._expiration ?? 0n,
+              contractAddress: (args._invoiceContract ?? contractAddress) as Address,
+              tokenName: meta.name,
+              tokenSymbol: meta.symbol,
+              tokenDecimals: meta.decimals,
+              isPaid: true,
+              receiptTokenId: args._receiptTokenId,
+              receiptNftAddress,
+              txHash: log.transactionHash
+            })
+          }
+        } catch (err) {
+          console.warn('[payer] failed to fetch paid InvoicePaid events', contractAddress, err)
+        }
+      }
+
+      // 2) Fetch unpaid invoices from contract storage
+      const unpaid: PayerInvoice[] = []
       for (const contractAddress of deployed) {
         let ids: bigint[] = []
         try {
@@ -118,7 +214,7 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
             const tokenVal = (r.token ?? r[3] ?? '0x0000000000000000000000000000000000000000') as Address
             const expirationVal = r.expiration ?? r[4] ?? 0n
 
-            const meta = await resolveMeta(tokenVal)
+            const meta = withFallbackSymbol(tokenVal, await resolveMeta(tokenVal))
 
             const invoice: ChainInvoice = {
               id: invoiceId,
@@ -136,13 +232,18 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
             })
             // If expiration is zero, treat as paid/removed; keep as Paid if needed for history, but not payable
             if (invoice.customer && customer && invoice.customer.toLowerCase() === customer.toLowerCase()) {
-              found.push({
+              const key = `${contractAddress.toLowerCase()}-${invoiceId.toString()}`
+              if (paidKeys.has(key)) {
+                continue
+              }
+
+              unpaid.push({
                 ...invoice,
                 contractAddress,
                 tokenName: meta.name,
                 tokenSymbol: meta.symbol,
                 tokenDecimals: meta.decimals,
-                isPaid: invoice.expiration === 0n
+                isPaid: false
               })
             }
           } catch (err) {
@@ -151,8 +252,9 @@ export function usePayerInvoices(factoryAddress?: Address, customer?: Address, c
         }
       }
 
-      // Show most recent first
-      setInvoices(found.sort((a, b) => Number(b.id - a.id)))
+      // 3) Combine and sort (most recent first)
+      const all = [...paidInvoices, ...unpaid]
+      setInvoices(all.sort((a, b) => Number(b.id - a.id)))
     } catch (err) {
       console.warn('[payer] refresh failed', err)
     } finally {
