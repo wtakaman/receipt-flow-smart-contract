@@ -208,7 +208,6 @@ export function InvoicePage({
         value: invoice.tokenMeta.isNative ? invoice.amountRaw : undefined,
         gas: 3_000_000n
       })
-      setStatus(`Payment successful for invoice #${invoice.id.toString()}!`)
       setIsPaid(true)
       setIsPaymentSubmitted(true)
       // Refresh invoice data after a short delay to confirm it's been paid
@@ -349,9 +348,6 @@ export function InvoicePage({
                   >
                     {isExpired ? 'Expired' : isPaying ? 'Submitting…' : isPaymentSubmitted ? 'Submitted…' : 'Pay invoice'}
                   </button>
-                )}
-                {isPaid && (
-                  <span className="badge success">✓ Payment complete</span>
                 )}
               </div>
 

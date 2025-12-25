@@ -36,8 +36,8 @@ export function HomePage({ onLaunchApp }: Props) {
     <div className="home">
       <header className="home-header">
         <div className="logo-mark">
-          <img src={logoSvg} alt="Receipt Flow Console" className="logo-icon" />
-          <span>Receipt Flow Console</span>
+          <img src={logoSvg} alt="Receipt Flow" className="logo-icon" />
+          <span>Receipt Flow</span>
         </div>
         <nav>
           <a href="#process">Architecture</a>
@@ -54,11 +54,12 @@ export function HomePage({ onLaunchApp }: Props) {
       <section className="home-hero">
         <div className="home-hero-text">
           <h1 className="hero-title">
-            <span>The Open Standard for</span>
+            <span>Verifiable</span>
             <span className="accent">On-Chain Invoicing</span>
           </h1>
           <p className="lead">
-            DeFi-grade payments with soulbound receipts. Free, open-source, and self-hosted for complete control.
+          A shared source of truth for merchants and customers. <br/>
+          Issue, track, and verify invoices with immutable on-chain records.
           </p>
           <div className="mini-metrics hero-metrics">
             <div>

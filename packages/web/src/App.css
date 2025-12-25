@@ -77,6 +77,21 @@
   min-height: 100vh;
 }
 
+.testnet-banner {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  margin: -16px -4px 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning);
+  text-align: center;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+}
+
 .app-header {
   position: sticky;
   top: 0;
