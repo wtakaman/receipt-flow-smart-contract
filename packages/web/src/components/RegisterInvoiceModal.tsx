@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Address } from 'viem'
 import { getTokenMeta, normalizeAddressInput } from '../config/contracts'
 
@@ -46,6 +47,18 @@ export function RegisterInvoiceModal({ open, supportedTokens, defaultToken, conn
     const customer = normalizeAddressInput(form.customer) as Address | undefined
     if (!idNum || !customer) return
     const tokenMeta = getTokenMeta(form.token)
+    
+    // Debug logging
+    console.log('[RegisterInvoiceModal] Submitting invoice:', {
+      id: idNum.toString(),
+      customer: customer,
+      originalInput: form.customer,
+      token: form.token,
+      amount: form.amount,
+      decimals: tokenMeta.decimals,
+      expiresInDays: Number(form.expiresInDays || '30')
+    })
+    
     setIsSubmitting(true)
     try {
       await onSubmit({
@@ -92,8 +105,17 @@ export function RegisterInvoiceModal({ open, supportedTokens, defaultToken, conn
                 value={form.customer}
                 onChange={(e) => setForm({ ...form, customer: e.target.value })}
                 placeholder="0x..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
+              {normalizedCustomer && normalizedCustomer !== form.customer && (
+                <p className="muted" style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                  Normalized: <code style={{ fontSize: '0.875rem' }}>{normalizedCustomer}</code>
+                </p>
+              )}
               {isSelfInvoice && (
                 <p className="muted warning-text" style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
                   ⚠️ Warning: You're creating an invoice to your own address. This is unusual.
@@ -147,8 +169,6 @@ export function RegisterInvoiceModal({ open, supportedTokens, defaultToken, conn
     </div>
   )
 }
-
-import { useState } from 'react'
 
 function shortAddress(value?: Address | string, size = 4) {
   if (!value) return ''

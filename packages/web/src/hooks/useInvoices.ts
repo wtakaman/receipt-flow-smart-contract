@@ -130,11 +130,31 @@ export function useInvoices(contractAddress?: Address, excludeCustomerAddress?: 
   // Actions
   const registerInvoice = useCallback(async (params: RegisterInvoiceParams) => {
     if (!contractAddress) throw new Error('No contract address')
+    
+    const amountRaw = parseUnits(params.amount, params.decimals)
+    const expiresInSec = BigInt(params.expiresInDays * 86400)
+    const args = [params.id, params.customer, amountRaw, params.token, expiresInSec]
+    
+    // Debug logging - verify parameter order matches contract signature:
+    // registerInvoice(uint256 _invoiceId, address _customer, uint256 _amount, address _token, uint _expiresInSec)
+    console.log('[useInvoices] Calling registerInvoice with args:', {
+      contractAddress,
+      functionName: 'registerInvoice',
+      args: {
+        _invoiceId: args[0].toString(),
+        _customer: args[1],
+        _amount: args[2].toString(),
+        _token: args[3],
+        _expiresInSec: args[4].toString()
+      },
+      fullArgs: args
+    })
+    
     await writeContractAsync({
       address: contractAddress,
       abi: invoiceFlowAbi,
       functionName: 'registerInvoice',
-      args: [params.id, params.customer, parseUnits(params.amount, params.decimals), params.token, BigInt(params.expiresInDays * 86400)]
+      args
     })
   }, [contractAddress, writeContractAsync])
 

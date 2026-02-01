@@ -4,8 +4,8 @@ import type { Address } from 'viem'
 import type { PaidInvoice } from '../types/invoice'
 
 const env = import.meta.env
-const LOG_WINDOW_BLOCKS = BigInt(Number(env.VITE_LOG_WINDOW_BLOCKS ?? 50000))
-const LOG_MAX_WINDOWS = Number(env.VITE_LOG_MAX_WINDOWS ?? 3) // total windows to scan (3 × 50k = ~150k blocks = ~3 weeks)
+const LOG_WINDOW_BLOCKS = BigInt(Number(env.VITE_LOG_WINDOW_BLOCKS ?? 5000))
+const LOG_MAX_WINDOWS = Number(env.VITE_LOG_MAX_WINDOWS ?? 20) // total windows to scan (20 × 50k = ~1M blocks = ~20 weeks on Sepolia)
 
 const INVOICE_PAID_EVENT = {
   type: 'event' as const,
@@ -59,6 +59,8 @@ export function usePaidInvoices(contractAddress?: Address) {
 
     try {
       const latestBlock = await publicClient.getBlockNumber()
+      console.log(`[usePaidInvoices] Fetching paid invoices for contract ${contractAddress}`)
+      console.log(`[usePaidInvoices] Latest block: ${latestBlock.toString()}, scanning ${LOG_MAX_WINDOWS} windows of ${LOG_WINDOW_BLOCKS.toString()} blocks each`)
 
       type LogEntry = {
         args?: {
@@ -78,6 +80,8 @@ export function usePaidInvoices(contractAddress?: Address) {
       const maxWindows = LOG_MAX_WINDOWS > 0 ? LOG_MAX_WINDOWS : 200
       let toBlock = latestBlock
       const logs: LogEntry[] = []
+      let consecutiveErrors = 0
+      const MAX_CONSECUTIVE_ERRORS = 3
 
       for (let i = 0; i < maxWindows && toBlock >= 0; i++) {
         const fromBlock = toBlock > (windowSize - 1n) ? toBlock - (windowSize - 1n) : 0n
@@ -92,6 +96,9 @@ export function usePaidInvoices(contractAddress?: Address) {
             transactionHash: string
             blockNumber: bigint
           }>
+          if (winLogs.length > 0) {
+            console.log(`[usePaidInvoices] Found ${winLogs.length} paid invoice(s) in blocks ${fromBlock.toString()}-${toBlock.toString()}`)
+          }
           logs.push(
             ...winLogs.map((log) => ({
               args: log.args,
@@ -99,14 +106,22 @@ export function usePaidInvoices(contractAddress?: Address) {
               blockNumber: log.blockNumber
             }))
           )
+          consecutiveErrors = 0 // Reset error counter on success
         } catch (err) {
-          // If even a tiny window fails, break to avoid hammering the RPC
-          console.warn(`getLogs failed for window ${fromBlock.toString()}-${toBlock.toString()}`, err)
-          break
+          // Log the error but continue scanning unless we hit too many consecutive errors
+          console.warn(`[usePaidInvoices] getLogs failed for window ${fromBlock.toString()}-${toBlock.toString()}`, err)
+          consecutiveErrors++
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            console.error(`[usePaidInvoices] ${MAX_CONSECUTIVE_ERRORS} consecutive errors, stopping scan`)
+            break
+          }
+          // Continue to next window even after error
         }
         if (fromBlock === 0n) break
         toBlock = fromBlock - 1n
       }
+
+      console.log(`[usePaidInvoices] Total logs found: ${logs.length}`)
 
       // Process logs
       const invoices: PaidInvoice[] = logs.map((log) => {
@@ -126,6 +141,8 @@ export function usePaidInvoices(contractAddress?: Address) {
 
       // Sort by block number (most recent first)
       const sorted = invoices.sort((a, b) => Number(b.blockNumber - a.blockNumber))
+      
+      console.log(`[usePaidInvoices] Processed ${sorted.length} paid invoices`)
       
       // Update cache
       cache.set(cacheKey, { data: sorted, timestamp: Date.now() })

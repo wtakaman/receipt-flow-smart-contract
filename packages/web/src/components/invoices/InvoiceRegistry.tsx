@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Address } from 'viem'
 import { formatUnits, zeroAddress } from 'viem'
 import type { ChainInvoice } from '../../types/invoice'
-import { getTokenMeta } from '../../config/contracts'
+import { getTokenMeta, normalizeAddressInput } from '../../config/contracts'
 import { formatDateFromSeconds, shortAddress } from '../../lib/format'
 import { Metric } from '../common/Metric'
 
@@ -42,14 +42,34 @@ export function InvoiceRegistry({ invoices, metrics, supportedTokens, isOwner, o
   const [form, setForm] = useState(defaultForm)
 
   const tokenOptions = supportedTokens.length ? supportedTokens : [zeroAddress]
+  const normalizedCustomer = normalizeAddressInput(form.customer)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!form.id || !form.customer || !form.amount || !form.token) return
+    
+    const customer = normalizeAddressInput(form.customer) as Address | undefined
+    if (!customer) {
+      console.error('[InvoiceRegistry] Invalid customer address:', form.customer)
+      return
+    }
+    
     const meta = getTokenMeta(form.token)
+    
+    // Debug logging
+    console.log('[InvoiceRegistry] Submitting invoice:', {
+      id: form.id,
+      customer: customer,
+      originalInput: form.customer,
+      token: form.token,
+      amount: form.amount,
+      decimals: meta.decimals ?? 18,
+      expiresInDays: Number(form.expiresInDays || '30')
+    })
+    
     await onRegister({
       id: BigInt(form.id),
-      customer: form.customer as Address,
+      customer: customer,
       token: form.token as Address,
       amount: form.amount,
       expiresInDays: Number(form.expiresInDays || '30'),
@@ -86,7 +106,16 @@ export function InvoiceRegistry({ invoices, metrics, supportedTokens, isOwner, o
                 value={form.customer}
                 onChange={(e) => setForm((prev) => ({ ...prev, customer: e.target.value }))}
                 placeholder="0x..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
               />
+              {normalizedCustomer && normalizedCustomer !== form.customer && (
+                <p className="muted" style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                  Normalized: <code style={{ fontSize: '0.875rem' }}>{normalizedCustomer}</code>
+                </p>
+              )}
             </label>
             <label>
               Amount
